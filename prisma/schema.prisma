@@ -24,6 +24,7 @@ model Workspace {
   updatedAt        DateTime @updatedAt @map("updated_at")
 
   memberships Membership[]
+  invitations Invitation[]
 
   @@map("workspaces")
 }
@@ -38,10 +39,33 @@ model Membership {
   createdAt   DateTime      @default(now()) @map("created_at")
   updatedAt   DateTime      @updatedAt @map("updated_at")
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace       Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  sentInvitations Invitation[] @relation("InvitationsSent")
 
   @@unique([workspaceId, userId])
   @@index([userId])
   @@index([workspaceId, role])
   @@map("memberships")
+}
+
+model Invitation {
+  id                    String        @id @default(cuid())
+  workspaceId           String        @map("workspace_id")
+  email                 String        @db.VarChar(320)
+  role                  WorkspaceRole @default(VIEWER)
+  tokenHash             String        @unique @map("token_hash") @db.VarChar(64)
+  invitedByMembershipId String        @map("invited_by_membership_id")
+  expiresAt             DateTime      @map("expires_at")
+  acceptedAt            DateTime?     @map("accepted_at")
+  revokedAt             DateTime?     @map("revoked_at")
+  createdAt             DateTime      @default(now()) @map("created_at")
+  updatedAt             DateTime      @updatedAt @map("updated_at")
+
+  workspace Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  invitedBy Membership @relation("InvitationsSent", fields: [invitedByMembershipId], references: [id], onDelete: Restrict)
+
+  @@index([workspaceId, email])
+  @@index([workspaceId, expiresAt])
+  @@index([invitedByMembershipId])
+  @@map("invitations")
 }
