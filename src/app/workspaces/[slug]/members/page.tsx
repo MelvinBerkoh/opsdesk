@@ -1,10 +1,10 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { InvitationForm } from "@/features/invitations/components/invitation-form";
 import { getMembersPageData } from "@/features/invitations/server/get-members-page-data";
 import { MemberActions } from "@/features/members/components/member-actions";
 import { RevokeInvitationButton } from "@/features/members/components/revoke-invitation-button";
+import { WorkspaceNav } from "@/features/workspaces/components/workspace-nav";
 import { hasWorkspacePermission } from "@/server/authorization/workspace-permissions";
 
 type MembersPageProps = {
@@ -49,14 +49,10 @@ export default async function MembersPage({
             </h1>
           </div>
 
-          <Link
-            href={`/workspaces/${workspace.slug}`}
-            className="text-sm text-zinc-400 transition hover:text-zinc-100"
-          >
-            Back to workspace
-          </Link>
         </div>
       </header>
+
+      <WorkspaceNav workspaceSlug={workspace.slug} />
 
       <div className="mx-auto max-w-7xl px-6 py-10">
         <div>
