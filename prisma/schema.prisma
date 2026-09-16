@@ -25,6 +25,7 @@ model Workspace {
 
   memberships Membership[]
   invitations Invitation[]
+  services    Service[]
 
   @@map("workspaces")
 }
@@ -68,4 +69,22 @@ model Invitation {
   @@index([workspaceId, expiresAt])
   @@index([invitedByMembershipId])
   @@map("invitations")
+}
+
+model Service {
+  id          String    @id @default(cuid())
+  workspaceId String    @map("workspace_id")
+  name        String    @db.VarChar(100)
+  slug        String    @db.VarChar(100)
+  description String?   @db.VarChar(500)
+  archivedAt  DateTime? @map("archived_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, slug])
+  @@index([workspaceId, archivedAt])
+  @@index([workspaceId, name])
+  @@map("services")
 }
