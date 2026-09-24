@@ -1,5 +1,6 @@
 "use client";
 
+import { UserButton } from "@clerk/nextjs";
 import type { ReactNode } from "react";
 
 import Link from "next/link";
@@ -24,6 +25,60 @@ type NavigationItem = {
   icon: string;
   active: boolean;
 };
+
+function getCurrentSection(
+  pathname: string,
+  workspaceSlug: string,
+) {
+  if (
+    pathname.startsWith(
+      `/workspaces/${workspaceSlug}/tickets`,
+    )
+  ) {
+    return {
+      title: "Tickets",
+      description: "Support queue and ticket operations",
+    };
+  }
+
+  if (
+    pathname.startsWith(
+      `/workspaces/${workspaceSlug}/incidents`,
+    )
+  ) {
+    return {
+      title: "Incidents",
+      description: "Incident response and escalation",
+    };
+  }
+
+  if (
+    pathname.startsWith(
+      `/workspaces/${workspaceSlug}/services`,
+    )
+  ) {
+    return {
+      title: "Services",
+      description: "Systems and service ownership",
+    };
+  }
+
+  if (
+    pathname.startsWith(
+      `/workspaces/${workspaceSlug}/members`,
+    )
+  ) {
+    return {
+      title: "Members",
+      description: "Workspace access and permissions",
+    };
+  }
+
+  return {
+    title: "Overview",
+    description: "Workspace operations at a glance",
+  };
+}
 
 export function WorkspaceShell({
   children,
@@ -81,6 +136,11 @@ export function WorkspaceShell({
     .map((word) => word[0])
     .join("")
     .toUpperCase();
+
+  const currentSection = getCurrentSection(
+    pathname,
+    workspaceSlug,
+  );
 
   return (
     <div className="min-h-screen bg-[#f4f6fb] text-[#171927]">
@@ -190,60 +250,46 @@ export function WorkspaceShell({
 
       <div className="lg:pl-[248px]">
         <header className="sticky top-0 z-30 border-b border-[#e7e8ee] bg-white/95 backdrop-blur-xl">
-          <div className="flex h-[76px] items-center justify-between gap-4 px-5 lg:px-8">
-            <div className="flex items-center gap-3 lg:hidden">
+          <div className="flex min-h-[76px] items-center justify-between gap-4 px-5 py-3 lg:px-8">
+            <div className="flex min-w-0 items-center gap-3">
               <Link
                 href="/"
-                className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#6d5dfc] text-xs font-bold text-white"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#6d5dfc] text-xs font-bold text-white lg:hidden"
               >
                 OD
               </Link>
 
-              <div>
-                <p className="text-sm font-semibold">
-                  OpsDesk
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-[#292b38]">
+                  {currentSection.title}
                 </p>
 
-                <p className="text-[9px] text-[#a0a3ae]">
-                  {workspaceName}
+                <p className="mt-0.5 hidden text-[11px] text-[#9a9daa] sm:block">
+                  {currentSection.description}
                 </p>
               </div>
             </div>
 
-            <div className="hidden w-full max-w-[480px] items-center gap-3 rounded-xl border border-[#e7e8ee] bg-[#f8f9fc] px-4 py-2.5 lg:flex">
-              <span className="text-sm text-[#aaaeba]">
-                ⌕
-              </span>
-
-              <span className="text-xs text-[#a0a3ae]">
-                Search tickets, incidents, services...
-              </span>
-
-              <span className="ml-auto rounded-md border border-[#e1e3e9] bg-white px-2 py-1 text-[9px] text-[#aaadb7]">
-                /
-              </span>
-            </div>
-
-            <div className="ml-auto flex items-center gap-3">
-              <button
-                type="button"
-                className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#e7e8ee] bg-white text-sm text-[#8f929d] transition hover:bg-[#f7f8fb]"
-                aria-label="Notifications"
+            <div className="flex items-center gap-2 sm:gap-3">
+              <Link
+                href={`/workspaces/${workspaceSlug}/tickets/new`}
+                className="hidden items-center gap-2 rounded-xl bg-[#6d5dfc] px-4 py-2.5 text-xs font-semibold text-white shadow-lg shadow-[#6d5dfc]/15 transition hover:bg-[#5e4fe8] sm:inline-flex"
               >
-                ◌
-              </button>
-
-              <div className="hidden h-8 w-px bg-[#e7e8ee] sm:block" />
+                <span>+</span>
+                <span>New ticket</span>
+              </Link>
 
               <Link
                 href="/dashboard"
-                className="flex items-center gap-3 rounded-xl px-1.5 py-1 transition hover:bg-[#f7f8fb]"
+                className="hidden rounded-xl border border-[#e3e5ec] bg-white px-4 py-2.5 text-xs font-semibold text-[#626572] transition hover:border-[#d7d2ff] hover:bg-[#f8f7ff] hover:text-[#6d5dfc] md:block"
               >
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#eeeaff] text-xs font-bold text-[#6d5dfc]">
-                  {initials}
-                </div>
+                Switch workspace
+              </Link>
 
-                <div className="hidden text-left sm:block">
+              <div className="hidden h-8 w-px bg-[#e7e8ee] sm:block" />
+
+              <div className="flex items-center gap-3 rounded-xl border border-transparent px-1.5 py-1">
+                <div className="hidden text-right xl:block">
                   <p className="max-w-[150px] truncate text-xs font-semibold text-[#343643]">
                     {workspaceName}
                   </p>
@@ -252,7 +298,18 @@ export function WorkspaceShell({
                     {role}
                   </p>
                 </div>
-              </Link>
+
+                <UserButton
+                  appearance={{
+                    elements: {
+                      avatarBox:
+                        "h-9 w-9 rounded-xl",
+                    userButtonPopoverCard:
+                        "rounded-2xl shadow-xl",
+                  },
+                  }}
+                />
+              </div>
             </div>
           </div>
 
@@ -270,6 +327,13 @@ export function WorkspaceShell({
                 {item.label}
               </Link>
             ))}
+
+            <Link
+              href={`/workspaces/${workspaceSlug}/tickets/new`}
+              className="ml-auto shrink-0 rounded-lg bg-[#6d5dfc] px-3 py-2 text-xs font-semibold text-white sm:hidden"
+            >
+              + Ticket
+            </Link>
           </nav>
         </header>
 
