@@ -54,42 +54,32 @@ export function TicketDetailsForm({
     initialState,
   );
 
+  const fieldClass =
+    "mt-2 w-full rounded-xl border border-[#dfe1e8] bg-[#fafbfc] px-3.5 py-2.5 text-sm text-[#292b39] outline-none transition focus:border-[#6d5dfc] focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/5";
+
   return (
     <form
       action={formAction}
-      className="rounded-xl border border-zinc-800 bg-zinc-900 p-5"
+      className="overflow-hidden rounded-[22px] border border-[#e4e6ed] bg-white shadow-[0_10px_35px_rgba(37,39,64,0.05)]"
     >
-      <input
-        type="hidden"
-        name="workspaceId"
-        value={workspaceId}
-      />
+      <input type="hidden" name="workspaceId" value={workspaceId} />
+      <input type="hidden" name="workspaceSlug" value={workspaceSlug} />
+      <input type="hidden" name="ticketId" value={ticketId} />
+      <input type="hidden" name="ticketNumber" value={ticketNumber} />
 
-      <input
-        type="hidden"
-        name="workspaceSlug"
-        value={workspaceSlug}
-      />
+      <div className="border-b border-[#eff0f4] px-5 py-4">
+        <p className="text-sm font-semibold">Manage ticket</p>
 
-      <input
-        type="hidden"
-        name="ticketId"
-        value={ticketId}
-      />
+        <p className="mt-1 text-xs text-[#9a9daa]">
+          Update routing and lifecycle.
+        </p>
+      </div>
 
-      <input
-        type="hidden"
-        name="ticketNumber"
-        value={ticketNumber}
-      />
-
-      <h3 className="font-semibold">Manage ticket</h3>
-
-      <div className="mt-5 space-y-5">
+      <div className="space-y-5 p-5">
         <div>
           <label
             htmlFor="status"
-            className="block text-sm text-zinc-500"
+            className="text-xs font-semibold uppercase tracking-[0.08em] text-[#9497a3]"
           >
             Status
           </label>
@@ -98,12 +88,10 @@ export function TicketDetailsForm({
             id="status"
             name="status"
             defaultValue={status}
-            className="mt-2 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-zinc-500"
+            className={fieldClass}
           >
             <option value="OPEN">Open</option>
-            <option value="IN_PROGRESS">
-              In progress
-            </option>
+            <option value="IN_PROGRESS">In progress</option>
             <option value="WAITING">Waiting</option>
             <option value="RESOLVED">Resolved</option>
             <option value="CLOSED">Closed</option>
@@ -113,7 +101,7 @@ export function TicketDetailsForm({
         <div>
           <label
             htmlFor="priority"
-            className="block text-sm text-zinc-500"
+            className="text-xs font-semibold uppercase tracking-[0.08em] text-[#9497a3]"
           >
             Priority
           </label>
@@ -122,7 +110,7 @@ export function TicketDetailsForm({
             id="priority"
             name="priority"
             defaultValue={priority}
-            className="mt-2 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-zinc-500"
+            className={fieldClass}
           >
             <option value="P0">P0 — Critical</option>
             <option value="P1">P1 — High</option>
@@ -134,7 +122,7 @@ export function TicketDetailsForm({
         <div>
           <label
             htmlFor="serviceId"
-            className="block text-sm text-zinc-500"
+            className="text-xs font-semibold uppercase tracking-[0.08em] text-[#9497a3]"
           >
             Service
           </label>
@@ -143,15 +131,12 @@ export function TicketDetailsForm({
             id="serviceId"
             name="serviceId"
             defaultValue={serviceId ?? ""}
-            className="mt-2 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-zinc-500"
+            className={fieldClass}
           >
             <option value="">No service</option>
 
             {services.map((service) => (
-              <option
-                key={service.id}
-                value={service.id}
-              >
+              <option key={service.id} value={service.id}>
                 {service.name}
               </option>
             ))}
@@ -161,7 +146,7 @@ export function TicketDetailsForm({
         <div>
           <label
             htmlFor="assigneeMembershipId"
-            className="block text-sm text-zinc-500"
+            className="text-xs font-semibold uppercase tracking-[0.08em] text-[#9497a3]"
           >
             Assignee
           </label>
@@ -170,40 +155,37 @@ export function TicketDetailsForm({
             id="assigneeMembershipId"
             name="assigneeMembershipId"
             defaultValue={assigneeMembershipId ?? ""}
-            className="mt-2 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-zinc-500"
+            className={fieldClass}
           >
             <option value="">Unassigned</option>
 
             {members.map((member) => (
-              <option
-                key={member.id}
-                value={member.id}
-              >
-                {member.userId} ({member.role})
+              <option key={member.id} value={member.id}>
+                {member.userId} · {member.role}
               </option>
             ))}
           </select>
         </div>
 
-        <button
-          type="submit"
-          disabled={isPending}
-          className="w-full rounded-lg bg-zinc-100 px-4 py-2.5 text-sm font-medium text-zinc-950 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {isPending ? "Saving..." : "Save changes"}
-        </button>
-
         {state.status !== "idle" && (
-          <p
-            className={`text-sm ${
+          <div
+            className={`rounded-xl px-3.5 py-3 text-xs ${
               state.status === "error"
-                ? "text-red-400"
-                : "text-emerald-400"
+                ? "border border-[#f1d1d4] bg-[#fff4f5] text-[#d74f5a]"
+                : "border border-[#ccebdd] bg-[#eefaf5] text-[#218363]"
             }`}
           >
             {state.message}
-          </p>
+          </div>
         )}
+
+        <button
+          type="submit"
+          disabled={isPending}
+          className="w-full rounded-xl bg-[#6d5dfc] px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-[#6d5dfc]/15 transition hover:bg-[#5e4fe8] disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isPending ? "Saving..." : "Save changes"}
+        </button>
       </div>
     </form>
   );

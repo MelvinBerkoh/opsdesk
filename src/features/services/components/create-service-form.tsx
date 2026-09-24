@@ -35,36 +35,48 @@ export function CreateServiceForm({
   }, [state.status]);
 
   return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
-      <h2 className="text-lg font-semibold">Create service</h2>
+    <form
+      ref={formRef}
+      action={formAction}
+      className="overflow-hidden rounded-[22px] border border-[#e4e6ed] bg-white shadow-[0_10px_35px_rgba(37,39,64,0.05)]"
+    >
+      <input
+        type="hidden"
+        name="workspaceId"
+        value={workspaceId}
+      />
 
-      <p className="mt-1 text-sm text-zinc-400">
-        Add a system or product that your team supports.
-      </p>
+      <input
+        type="hidden"
+        name="workspaceSlug"
+        value={workspaceSlug}
+      />
 
-      <form
-        ref={formRef}
-        action={formAction}
-        className="mt-6 space-y-4"
-      >
-        <input
-          type="hidden"
-          name="workspaceId"
-          value={workspaceId}
-        />
+      <div className="border-b border-[#eff0f4] px-5 py-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#eeeaff] text-[#6d5dfc]">
+            +
+          </div>
 
-        <input
-          type="hidden"
-          name="workspaceSlug"
-          value={workspaceSlug}
-        />
+          <div>
+            <p className="text-sm font-semibold">
+              Add a service
+            </p>
 
+            <p className="mt-0.5 text-xs text-[#9a9daa]">
+              Track another system your team owns.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-5 p-5">
         <div>
           <label
             htmlFor="service-name"
-            className="block text-sm font-medium text-zinc-200"
+            className="text-xs font-semibold uppercase tracking-[0.08em] text-[#9497a3]"
           >
-            Name
+            Service name
           </label>
 
           <input
@@ -75,14 +87,14 @@ export function CreateServiceForm({
             minLength={2}
             maxLength={100}
             placeholder="Payments API"
-            className="mt-2 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2.5 text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-zinc-500"
+            className="mt-2 w-full rounded-xl border border-[#dfe1e8] bg-[#fafbfc] px-4 py-3 text-sm text-[#292b39] outline-none transition placeholder:text-[#b0b3bd] focus:border-[#6d5dfc] focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/5"
           />
         </div>
 
         <div>
           <label
             htmlFor="service-description"
-            className="block text-sm font-medium text-zinc-200"
+            className="text-xs font-semibold uppercase tracking-[0.08em] text-[#9497a3]"
           >
             Description
           </label>
@@ -90,33 +102,33 @@ export function CreateServiceForm({
           <textarea
             id="service-description"
             name="description"
-            maxLength={500}
             rows={4}
+            maxLength={500}
             placeholder="Handles payment processing and billing events."
-            className="mt-2 w-full resize-none rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2.5 text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-zinc-500"
+            className="mt-2 w-full resize-none rounded-xl border border-[#dfe1e8] bg-[#fafbfc] px-4 py-3 text-sm text-[#292b39] outline-none transition placeholder:text-[#b0b3bd] focus:border-[#6d5dfc] focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/5"
           />
         </div>
+
+        {state.status !== "idle" && (
+          <div
+            className={`rounded-xl px-3.5 py-3 text-xs ${
+              state.status === "error"
+                ? "border border-[#f1d1d4] bg-[#fff4f5] text-[#d74f5a]"
+                : "border border-[#ccebdd] bg-[#eefaf5] text-[#218363]"
+            }`}
+          >
+            {state.message}
+          </div>
+        )}
 
         <button
           type="submit"
           disabled={isPending}
-          className="rounded-lg bg-zinc-100 px-4 py-2.5 text-sm font-medium text-zinc-950 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+          className="w-full rounded-xl bg-[#6d5dfc] px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-[#6d5dfc]/15 transition hover:bg-[#5e4fe8] disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {isPending ? "Creating..." : "Create service"}
+          {isPending ? "Adding service..." : "Add service"}
         </button>
-      </form>
-
-      {state.status !== "idle" && (
-        <p
-          className={`mt-4 text-sm ${
-            state.status === "error"
-              ? "text-red-400"
-              : "text-emerald-400"
-          }`}
-        >
-          {state.message}
-        </p>
-      )}
-    </div>
+      </div>
+    </form>
   );
 }

@@ -58,10 +58,13 @@ export function IncidentDetailsForm({
     initialState,
   );
 
+  const fieldClass =
+    "mt-2 w-full rounded-xl border border-[#dfe1e8] bg-[#fafbfc] px-3.5 py-2.5 text-sm text-[#292b39] outline-none transition focus:border-[#ef5d67] focus:bg-white focus:ring-4 focus:ring-[#ef5d67]/5";
+
   return (
     <form
       action={formAction}
-      className="rounded-xl border border-zinc-800 bg-zinc-900 p-5"
+      className="overflow-hidden rounded-[22px] border border-[#eadfe0] bg-white shadow-[0_10px_35px_rgba(37,39,64,0.05)]"
     >
       <input
         type="hidden"
@@ -87,37 +90,44 @@ export function IncidentDetailsForm({
         value={incidentNumber}
       />
 
-      <h3 className="font-semibold">
-        Manage incident
-      </h3>
+      <div className="border-b border-[#f0e7e8] bg-[#fffafa] px-5 py-4">
+        <div className="flex items-center gap-3">
+          <span className="h-2 w-2 rounded-full bg-[#ef5d67] shadow-[0_0_9px_rgba(239,93,103,0.4)]" />
 
-      <div className="mt-5 space-y-5">
+          <div>
+            <p className="text-sm font-semibold">
+              Manage response
+            </p>
+
+            <p className="mt-1 text-xs text-[#9a9daa]">
+              Update incident lifecycle and ownership.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-5 p-5">
         <div>
           <label
-            htmlFor="status"
-            className="block text-sm text-zinc-500"
+            htmlFor="incident-status"
+            className="text-xs font-semibold uppercase tracking-[0.08em] text-[#9497a3]"
           >
-            Status
+            Response status
           </label>
 
           <select
-            id="status"
+            id="incident-status"
             name="status"
             defaultValue={status}
-            className="mt-2 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-zinc-500"
+            className={fieldClass}
           >
-            <option value="OPEN">
-              Open
-            </option>
-
+            <option value="OPEN">Open</option>
             <option value="INVESTIGATING">
               Investigating
             </option>
-
             <option value="MONITORING">
               Monitoring
             </option>
-
             <option value="RESOLVED">
               Resolved
             </option>
@@ -126,53 +136,40 @@ export function IncidentDetailsForm({
 
         <div>
           <label
-            htmlFor="priority"
-            className="block text-sm text-zinc-500"
+            htmlFor="incident-priority"
+            className="text-xs font-semibold uppercase tracking-[0.08em] text-[#9497a3]"
           >
-            Priority
+            Severity
           </label>
 
           <select
-            id="priority"
+            id="incident-priority"
             name="priority"
             defaultValue={priority}
-            className="mt-2 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-zinc-500"
+            className={fieldClass}
           >
-            <option value="P0">
-              P0 — Critical
-            </option>
-
-            <option value="P1">
-              P1 — High
-            </option>
-
-            <option value="P2">
-              P2 — Medium
-            </option>
-
-            <option value="P3">
-              P3 — Low
-            </option>
+            <option value="P0">P0 — Critical</option>
+            <option value="P1">P1 — High</option>
+            <option value="P2">P2 — Medium</option>
+            <option value="P3">P3 — Low</option>
           </select>
         </div>
 
         <div>
           <label
-            htmlFor="serviceId"
-            className="block text-sm text-zinc-500"
+            htmlFor="incident-service"
+            className="text-xs font-semibold uppercase tracking-[0.08em] text-[#9497a3]"
           >
-            Service
+            Affected service
           </label>
 
           <select
-            id="serviceId"
+            id="incident-service"
             name="serviceId"
             defaultValue={serviceId ?? ""}
-            className="mt-2 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-zinc-500"
+            className={fieldClass}
           >
-            <option value="">
-              No service
-            </option>
+            <option value="">No service</option>
 
             {services.map((service) => (
               <option
@@ -187,54 +184,52 @@ export function IncidentDetailsForm({
 
         <div>
           <label
-            htmlFor="ownerMembershipId"
-            className="block text-sm text-zinc-500"
+            htmlFor="incident-owner"
+            className="text-xs font-semibold uppercase tracking-[0.08em] text-[#9497a3]"
           >
-            Owner
+            Incident owner
           </label>
 
           <select
-            id="ownerMembershipId"
+            id="incident-owner"
             name="ownerMembershipId"
             defaultValue={ownerMembershipId ?? ""}
-            className="mt-2 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-zinc-500"
+            className={fieldClass}
           >
-            <option value="">
-              Unassigned
-            </option>
+            <option value="">Unassigned</option>
 
             {members.map((member) => (
               <option
                 key={member.id}
                 value={member.id}
               >
-                {member.userId} ({member.role})
+                {member.userId} · {member.role}
               </option>
             ))}
           </select>
         </div>
 
-        <button
-          type="submit"
-          disabled={isPending}
-          className="w-full rounded-lg bg-zinc-100 px-4 py-2.5 text-sm font-medium text-zinc-950 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {isPending
-            ? "Saving..."
-            : "Save changes"}
-        </button>
-
         {state.status !== "idle" && (
-          <p
-            className={`text-sm ${
+          <div
+            className={`rounded-xl px-3.5 py-3 text-xs ${
               state.status === "error"
-                ? "text-red-400"
-                : "text-emerald-400"
+                ? "border border-[#f1d1d4] bg-[#fff4f5] text-[#d74f5a]"
+                : "border border-[#ccebdd] bg-[#eefaf5] text-[#218363]"
             }`}
           >
             {state.message}
-          </p>
+          </div>
         )}
+
+        <button
+          type="submit"
+          disabled={isPending}
+          className="w-full rounded-xl bg-[#17182b] px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-[#17182b]/10 transition hover:bg-[#292a40] disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isPending
+            ? "Saving response..."
+            : "Save incident changes"}
+        </button>
       </div>
     </form>
   );

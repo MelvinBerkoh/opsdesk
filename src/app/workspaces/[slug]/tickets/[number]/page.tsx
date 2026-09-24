@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { EscalateTicketButton } from "@/features/incidents/components/escalate-ticket-button";
 import { TicketDetailsForm } from "@/features/tickets/components/ticket-details-form";
 import { getTicketDetail } from "@/features/tickets/server/get-ticket-detail";
-import { WorkspaceNav } from "@/features/workspaces/components/workspace-nav";
+import { WorkspaceShell } from "@/features/workspaces/components/workspace-shell";
 import { hasWorkspacePermission } from "@/server/authorization/workspace-permissions";
 
 type TicketDetailPageProps = {
@@ -54,10 +54,7 @@ function getMetadataValues(metadata: unknown) {
     typeof metadata !== "object" ||
     Array.isArray(metadata)
   ) {
-    return {
-      from: null,
-      to: null,
-    };
+    return { from: null, to: null };
   }
 
   const record = metadata as Record<string, unknown>;
@@ -134,6 +131,43 @@ function getActivityDetail(
   return null;
 }
 
+function getStatusStyle(
+  status:
+    | "OPEN"
+    | "IN_PROGRESS"
+    | "WAITING"
+    | "RESOLVED"
+    | "CLOSED",
+) {
+  switch (status) {
+    case "OPEN":
+      return "bg-[#edf0ff] text-[#5e63d8]";
+    case "IN_PROGRESS":
+      return "bg-[#e6f8f4] text-[#168c73]";
+    case "WAITING":
+      return "bg-[#fff3dd] text-[#dc8b1f]";
+    case "RESOLVED":
+      return "bg-[#e6f8ed] text-[#2f9e62]";
+    case "CLOSED":
+      return "bg-[#eef0f4] text-[#777b87]";
+  }
+}
+
+function getPriorityStyle(
+  priority: "P0" | "P1" | "P2" | "P3",
+) {
+  switch (priority) {
+    case "P0":
+      return "bg-[#ffe8e9] text-[#e94e5a]";
+    case "P1":
+      return "bg-[#fff1dd] text-[#e89722]";
+    case "P2":
+      return "bg-[#eeeaff] text-[#6d5dfc]";
+    case "P3":
+      return "bg-[#eef0f4] text-[#777b87]";
+  }
+}
+
 export default async function TicketDetailPage({
   params,
 }: TicketDetailPageProps) {
@@ -164,78 +198,107 @@ export default async function TicketDetailPage({
   );
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-zinc-100">
-      <header className="border-b border-zinc-800">
-        <div className="mx-auto max-w-7xl px-6 py-5">
-          <p className="text-sm text-zinc-500">
-            OpsDesk Workspace
-          </p>
-
-          <div className="mt-1 flex items-center gap-3">
-            <h1 className="text-xl font-semibold">
-              {ticket.workspace.name}
-            </h1>
-
-            <span className="rounded-full border border-zinc-700 px-2.5 py-1 text-xs font-medium text-zinc-300">
-              {currentMembership.role}
-            </span>
-          </div>
-        </div>
-      </header>
-
-      <WorkspaceNav workspaceSlug={ticket.workspace.slug} />
-
-      <div className="mx-auto max-w-7xl px-6 py-10">
+    <WorkspaceShell
+      workspaceName={ticket.workspace.name}
+      workspaceSlug={ticket.workspace.slug}
+      role={currentMembership.role}
+    >
+      <div className="mx-auto max-w-[1400px] px-6 py-8 lg:px-9 lg:py-10">
         <Link
           href={`/workspaces/${ticket.workspace.slug}/tickets`}
-          className="text-sm text-zinc-500 transition hover:text-zinc-300"
+          className="inline-flex items-center gap-2 text-sm font-medium text-[#898c98] transition hover:text-[#6d5dfc]"
         >
           ← Back to tickets
         </Link>
 
-        <div className="mt-6 grid gap-8 lg:grid-cols-[1fr_340px]">
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm font-medium text-zinc-500">
+        <div className="mt-7 flex flex-col justify-between gap-6 lg:flex-row lg:items-start">
+          <div className="max-w-3xl">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <span className="text-sm font-semibold text-[#6d5dfc]">
                 {formatTicketNumber(ticket.number)}
               </span>
 
-              <span className="rounded-full border border-zinc-700 px-2.5 py-1 text-xs text-zinc-300">
+              <span
+                className={`rounded-full px-2.5 py-1 text-xs font-medium ${getStatusStyle(
+                  ticket.status,
+                )}`}
+              >
+                {statusLabels[ticket.status]}
+              </span>
+
+              <span
+                className={`rounded-full px-2.5 py-1 text-xs font-semibold ${getPriorityStyle(
+                  ticket.priority,
+                )}`}
+              >
                 {ticket.priority} ·{" "}
                 {priorityLabels[ticket.priority]}
               </span>
-
-              <span className="rounded-full border border-zinc-700 px-2.5 py-1 text-xs text-zinc-300">
-                {statusLabels[ticket.status]}
-              </span>
             </div>
 
-            <h2 className="mt-4 text-3xl font-semibold tracking-tight">
+            <h1 className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-[#171927] lg:text-[40px]">
               {ticket.title}
-            </h2>
+            </h1>
 
-            <section className="mt-8 rounded-xl border border-zinc-800 bg-zinc-900 p-6">
-              <h3 className="text-sm font-medium uppercase tracking-wider text-zinc-500">
-                Description
-              </h3>
+            <p className="mt-3 text-sm text-[#989ba6]">
+              Reported{" "}
+              {ticket.createdAt.toLocaleDateString("en-US", {
+                month: "long",
+                day: "numeric",
+                year: "numeric",
+              })}
+            </p>
+          </div>
+        </div>
 
-              <p className="mt-4 whitespace-pre-wrap leading-7 text-zinc-300">
+        <div className="mt-8 grid gap-6 xl:grid-cols-[1fr_330px]">
+          <div className="space-y-6">
+            <section className="rounded-[24px] border border-[#e4e6ed] bg-white p-6 shadow-[0_10px_35px_rgba(37,39,64,0.045)] sm:p-8">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#eeeaff] text-[#6d5dfc]">
+                  ◫
+                </div>
+
+                <div>
+                  <h2 className="text-sm font-semibold">
+                    Issue description
+                  </h2>
+
+                  <p className="mt-0.5 text-xs text-[#a0a3ae]">
+                    Original reported context
+                  </p>
+                </div>
+              </div>
+
+              <p className="mt-6 whitespace-pre-wrap text-[15px] leading-7 text-[#555966]">
                 {ticket.description}
               </p>
             </section>
 
-            <section className="mt-8">
-              <h3 className="text-lg font-semibold">
-                Activity
-              </h3>
+            <section className="overflow-hidden rounded-[24px] border border-[#e4e6ed] bg-white shadow-[0_10px_35px_rgba(37,39,64,0.045)]">
+              <div className="flex items-center justify-between border-b border-[#eff0f4] px-6 py-5 sm:px-8">
+                <div>
+                  <h2 className="font-semibold">
+                    Activity timeline
+                  </h2>
 
-              <div className="mt-4 space-y-3">
+                  <p className="mt-1 text-xs text-[#9a9daa]">
+                    Every recorded change to this ticket
+                  </p>
+                </div>
+
+                <span className="rounded-full bg-[#f3f4f8] px-3 py-1.5 text-xs font-medium text-[#858895]">
+                  {ticket.activities.length} events
+                </span>
+              </div>
+
+              <div className="px-6 py-3 sm:px-8">
                 {ticket.activities.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-zinc-800 p-6 text-sm text-zinc-500">
-                    No activity yet.
+                  <div className="py-10 text-center text-sm text-[#9a9daa]">
+                    No activity recorded yet.
                   </div>
                 ) : (
-                  ticket.activities.map((activity) => {
+                  ticket.activities.map((activity, index) => {
                     const detail = getActivityDetail(
                       activity.type,
                       activity.metadata,
@@ -246,42 +309,52 @@ export default async function TicketDetailPage({
                     return (
                       <div
                         key={activity.id}
-                        className="rounded-xl border border-zinc-800 bg-zinc-900 p-4"
+                        className="relative flex gap-4 py-5"
                       >
-                        <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
-                          <div>
-                            <p className="text-sm font-medium">
-                              {
-                                activityLabels[
-                                  activity.type
-                                ]
-                              }
-                            </p>
+                        {index !==
+                          ticket.activities.length - 1 && (
+                          <div className="absolute left-[15px] top-10 h-[calc(100%-18px)] w-px bg-[#e7e8ee]" />
+                        )}
 
-                            {detail && (
-                              <p className="mt-1 text-sm text-zinc-400">
-                                {detail}
+                        <div className="relative z-10 mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-4 border-white bg-[#eeeaff] text-[10px] font-bold text-[#6d5dfc] shadow-sm">
+                          {activity.type === "INCIDENT_LINKED"
+                            ? "⚡"
+                            : activity.type === "CREATED"
+                              ? "+"
+                              : "•"}
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-start">
+                            <div>
+                              <p className="text-sm font-semibold text-[#393b49]">
+                                {activityLabels[activity.type]}
                               </p>
-                            )}
 
-                            <p className="mt-2 text-xs text-zinc-600">
-                              {activity.actor?.userId ??
-                                "System"}
-                            </p>
+                              {detail && (
+                                <p className="mt-1 text-sm text-[#747784]">
+                                  {detail}
+                                </p>
+                              )}
+
+                              <p className="mt-2 text-xs text-[#aaaeba]">
+                                {activity.actor?.userId ??
+                                  "System"}
+                              </p>
+                            </div>
+
+                            <time className="shrink-0 text-xs text-[#b0b3bc]">
+                              {activity.createdAt.toLocaleString(
+                                "en-US",
+                                {
+                                  month: "short",
+                                  day: "numeric",
+                                  hour: "numeric",
+                                  minute: "2-digit",
+                                },
+                              )}
+                            </time>
                           </div>
-
-                          <time className="shrink-0 text-xs text-zinc-600">
-                            {activity.createdAt.toLocaleString(
-                              "en-US",
-                              {
-                                month: "short",
-                                day: "numeric",
-                                year: "numeric",
-                                hour: "numeric",
-                                minute: "2-digit",
-                              },
-                            )}
-                          </time>
                         </div>
                       </div>
                     );
@@ -291,7 +364,7 @@ export default async function TicketDetailPage({
             </section>
           </div>
 
-          <aside className="space-y-4">
+          <aside className="space-y-5">
             {canManageTickets && (
               <TicketDetailsForm
                 workspaceId={ticket.workspace.id}
@@ -309,6 +382,56 @@ export default async function TicketDetailPage({
               />
             )}
 
+            <div className="rounded-[22px] border border-[#e4e6ed] bg-white p-5">
+              <p className="text-sm font-semibold">
+                Ticket context
+              </p>
+
+              <dl className="mt-5 space-y-5">
+                <div>
+                  <dt className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[#a0a3ae]">
+                    Service
+                  </dt>
+
+                  <dd className="mt-1.5 text-sm font-medium text-[#555966]">
+                    {ticket.service?.name ?? "No service"}
+                  </dd>
+                </div>
+
+                <div>
+                  <dt className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[#a0a3ae]">
+                    Assignee
+                  </dt>
+
+                  <dd className="mt-1.5 break-all text-sm font-medium text-[#555966]">
+                    {ticket.assignee?.userId ?? "Unassigned"}
+                  </dd>
+                </div>
+
+                <div>
+                  <dt className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[#a0a3ae]">
+                    Reporter
+                  </dt>
+
+                  <dd className="mt-1.5 break-all text-sm font-medium text-[#555966]">
+                    {ticket.reporter.userId}
+                  </dd>
+                </div>
+
+                {ticket.resolvedAt && (
+                  <div>
+                    <dt className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[#a0a3ae]">
+                      Resolved
+                    </dt>
+
+                    <dd className="mt-1.5 text-sm font-medium text-[#555966]">
+                      {ticket.resolvedAt.toLocaleString()}
+                    </dd>
+                  </div>
+                )}
+              </dl>
+            </div>
+
             {canManageIncidents && (
               <EscalateTicketButton
                 workspaceId={ticket.workspace.id}
@@ -317,65 +440,9 @@ export default async function TicketDetailPage({
                 ticketNumber={ticket.number}
               />
             )}
-
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
-              <h3 className="font-semibold">
-                Ticket details
-              </h3>
-
-              <dl className="mt-5 space-y-4 text-sm">
-                <div>
-                  <dt className="text-zinc-500">Status</dt>
-                  <dd className="mt-1 text-zinc-200">
-                    {statusLabels[ticket.status]}
-                  </dd>
-                </div>
-
-                <div>
-                  <dt className="text-zinc-500">Priority</dt>
-                  <dd className="mt-1 text-zinc-200">
-                    {ticket.priority} ·{" "}
-                    {priorityLabels[ticket.priority]}
-                  </dd>
-                </div>
-
-                <div>
-                  <dt className="text-zinc-500">Service</dt>
-                  <dd className="mt-1 text-zinc-200">
-                    {ticket.service?.name ?? "None"}
-                  </dd>
-                </div>
-
-                <div>
-                  <dt className="text-zinc-500">
-                    Assignee
-                  </dt>
-                  <dd className="mt-1 break-all text-zinc-200">
-                    {ticket.assignee?.userId ??
-                      "Unassigned"}
-                  </dd>
-                </div>
-
-                <div>
-                  <dt className="text-zinc-500">
-                    Reporter
-                  </dt>
-                  <dd className="mt-1 break-all text-zinc-200">
-                    {ticket.reporter.userId}
-                  </dd>
-                </div>
-
-                <div>
-                  <dt className="text-zinc-500">Created</dt>
-                  <dd className="mt-1 text-zinc-200">
-                    {ticket.createdAt.toLocaleString()}
-                  </dd>
-                </div>
-              </dl>
-            </div>
           </aside>
         </div>
       </div>
-    </main>
+    </WorkspaceShell>
   );
 }

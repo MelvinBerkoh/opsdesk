@@ -37,10 +37,8 @@ export function MemberActions({
     initialState,
   );
 
-  const [removeState, removeAction, removePending] = useActionState(
-    removeMemberAction,
-    initialState,
-  );
+  const [removeState, removeAction, removePending] =
+    useActionState(removeMemberAction, initialState);
 
   const ownerCanManage =
     actorRole === "OWNER" &&
@@ -60,21 +58,23 @@ export function MemberActions({
   }
 
   return (
-    <div className="mt-4 space-y-3 border-t border-zinc-800 pt-4">
+    <div className="mt-5 border-t border-[#eff0f4] pt-5">
       <form
         action={roleAction}
-        className="flex flex-col gap-2 sm:flex-row"
+        className="flex flex-col gap-3 sm:flex-row"
       >
         <input
           type="hidden"
           name="workspaceId"
           value={workspaceId}
         />
+
         <input
           type="hidden"
           name="workspaceSlug"
           value={workspaceSlug}
         />
+
         <input
           type="hidden"
           name="membershipId"
@@ -84,7 +84,7 @@ export function MemberActions({
         <select
           name="role"
           defaultValue={targetRole}
-          className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100"
+          className="min-w-0 flex-1 rounded-xl border border-[#dfe1e8] bg-[#fafbfc] px-3.5 py-2.5 text-sm text-[#343643] outline-none transition focus:border-[#6d5dfc] focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/5"
         >
           {actorRole === "OWNER" && (
             <option value="ADMIN">Admin</option>
@@ -97,55 +97,66 @@ export function MemberActions({
         <button
           type="submit"
           disabled={rolePending}
-          className="rounded-lg border border-zinc-700 px-3 py-2 text-sm font-medium text-zinc-200 transition hover:bg-zinc-800 disabled:opacity-50"
+          className="rounded-xl bg-[#17182b] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-[#292a40] disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {rolePending ? "Saving..." : "Change role"}
+          {rolePending ? "Saving..." : "Update role"}
         </button>
       </form>
 
       {roleState.status !== "idle" && (
         <p
-          className={`text-xs ${
+          className={`mt-3 text-xs ${
             roleState.status === "error"
-              ? "text-red-400"
-              : "text-emerald-400"
+              ? "text-[#d74f5a]"
+              : "text-[#218363]"
           }`}
         >
           {roleState.message}
         </p>
       )}
 
-      <form action={removeAction}>
+      <form
+        action={removeAction}
+        className="mt-4 flex items-center justify-between rounded-xl bg-[#fff7f7] px-3.5 py-3"
+      >
         <input
           type="hidden"
           name="workspaceId"
           value={workspaceId}
         />
+
         <input
           type="hidden"
           name="workspaceSlug"
           value={workspaceSlug}
         />
+
         <input
           type="hidden"
           name="membershipId"
           value={membershipId}
         />
 
+        <div>
+          <p className="text-xs font-medium text-[#7e6668]">
+            Remove workspace access
+          </p>
+
+          {removeState.status === "error" && (
+            <p className="mt-1 text-xs text-[#d74f5a]">
+              {removeState.message}
+            </p>
+          )}
+        </div>
+
         <button
           type="submit"
           disabled={removePending}
-          className="text-sm font-medium text-red-400 transition hover:text-red-300 disabled:opacity-50"
+          className="text-xs font-semibold text-[#df5661] transition hover:text-[#c6404b] disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {removePending ? "Removing..." : "Remove member"}
+          {removePending ? "Removing..." : "Remove"}
         </button>
       </form>
-
-      {removeState.status === "error" && (
-        <p className="text-xs text-red-400">
-          {removeState.message}
-        </p>
-      )}
     </div>
   );
 }

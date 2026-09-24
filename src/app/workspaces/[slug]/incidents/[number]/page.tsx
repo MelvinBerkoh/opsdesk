@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 
 import { IncidentDetailsForm } from "@/features/incidents/components/incident-details-form";
 import { getIncidentDetail } from "@/features/incidents/server/get-incident-detail";
-import { WorkspaceNav } from "@/features/workspaces/components/workspace-nav";
+import { WorkspaceShell } from "@/features/workspaces/components/workspace-shell";
 import { hasWorkspacePermission } from "@/server/authorization/workspace-permissions";
 
 type IncidentDetailPageProps = {
@@ -152,8 +152,15 @@ function getActivityDetail(
   }
 
   if (type === "CREATED") {
-    const priority = getStringValue(record, "priority");
-    const status = getStringValue(record, "status");
+    const priority = getStringValue(
+      record,
+      "priority",
+    );
+
+    const status = getStringValue(
+      record,
+      "status",
+    );
 
     if (priority && status) {
       return `${priority} · ${formatStatus(status)}`;
@@ -161,6 +168,40 @@ function getActivityDetail(
   }
 
   return null;
+}
+
+function getStatusStyle(
+  status:
+    | "OPEN"
+    | "INVESTIGATING"
+    | "MONITORING"
+    | "RESOLVED",
+) {
+  switch (status) {
+    case "OPEN":
+      return "bg-[#fff0f1] text-[#df5661]";
+    case "INVESTIGATING":
+      return "bg-[#fff1dd] text-[#d98b22]";
+    case "MONITORING":
+      return "bg-[#eeeaff] text-[#6757e8]";
+    case "RESOLVED":
+      return "bg-[#e7f8ef] text-[#279565]";
+  }
+}
+
+function getPriorityStyle(
+  priority: "P0" | "P1" | "P2" | "P3",
+) {
+  switch (priority) {
+    case "P0":
+      return "bg-[#ffe8e9] text-[#e94e5a]";
+    case "P1":
+      return "bg-[#fff1dd] text-[#e89722]";
+    case "P2":
+      return "bg-[#eeeaff] text-[#6d5dfc]";
+    case "P3":
+      return "bg-[#eef0f4] text-[#777b87]";
+  }
 }
 
 export default async function IncidentDetailPage({
@@ -193,150 +234,278 @@ export default async function IncidentDetailPage({
     "incidents:manage",
   );
 
+  const active =
+    incident.status !== "RESOLVED";
+
   return (
-    <main className="min-h-screen bg-zinc-950 text-zinc-100">
-      <header className="border-b border-zinc-800">
-        <div className="mx-auto max-w-7xl px-6 py-5">
-          <p className="text-sm text-zinc-500">
-            OpsDesk Workspace
-          </p>
-
-          <div className="mt-1 flex items-center gap-3">
-            <h1 className="text-xl font-semibold">
-              {incident.workspace.name}
-            </h1>
-
-            <span className="rounded-full border border-zinc-700 px-2.5 py-1 text-xs font-medium text-zinc-300">
-              {currentMembership.role}
-            </span>
-          </div>
-        </div>
-      </header>
-
-      <WorkspaceNav
-        workspaceSlug={incident.workspace.slug}
-      />
-
-      <div className="mx-auto max-w-7xl px-6 py-10">
+    <WorkspaceShell
+      workspaceName={incident.workspace.name}
+      workspaceSlug={incident.workspace.slug}
+      role={currentMembership.role}
+    >
+      <div className="mx-auto max-w-[1400px] px-6 py-8 lg:px-9 lg:py-10">
         <Link
           href={`/workspaces/${incident.workspace.slug}/incidents`}
-          className="text-sm text-zinc-500 transition hover:text-zinc-300"
+          className="inline-flex items-center gap-2 text-sm font-medium text-[#898c98] transition hover:text-[#ef5d67]"
         >
           ← Back to incidents
         </Link>
 
-        <div className="mt-6 grid gap-8 lg:grid-cols-[1fr_340px]">
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm font-medium text-zinc-500">
+        <div className="mt-7 flex flex-col justify-between gap-6 lg:flex-row lg:items-start">
+          <div className="max-w-3xl">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <span className="text-sm font-semibold text-[#e3545f]">
                 {formatIncidentNumber(incident.number)}
               </span>
 
-              <span className="rounded-full border border-red-900 bg-red-950/30 px-2.5 py-1 text-xs text-red-300">
+              <span
+                className={`rounded-full px-2.5 py-1 text-xs font-medium ${getStatusStyle(
+                  incident.status,
+                )}`}
+              >
+                {statusLabels[incident.status]}
+              </span>
+
+              <span
+                className={`rounded-full px-2.5 py-1 text-xs font-semibold ${getPriorityStyle(
+                  incident.priority,
+                )}`}
+              >
                 {incident.priority} ·{" "}
                 {priorityLabels[incident.priority]}
               </span>
 
-              <span className="rounded-full border border-zinc-700 px-2.5 py-1 text-xs text-zinc-300">
-                {statusLabels[incident.status]}
-              </span>
+              {active && (
+                <span className="flex items-center gap-2 rounded-full bg-[#17182b] px-3 py-1 text-xs font-medium text-white">
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#ef5d67] shadow-[0_0_8px_rgba(239,93,103,0.55)]" />
+                  Live response
+                </span>
+              )}
             </div>
 
-            <h2 className="mt-4 text-3xl font-semibold tracking-tight">
+            <h1 className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-[#171927] lg:text-[40px]">
               {incident.title}
-            </h2>
+            </h1>
 
-            {incident.sourceTicket && (
-              <Link
-                href={`/workspaces/${incident.workspace.slug}/tickets/${incident.sourceTicket.number}`}
-                className="mt-4 inline-block text-sm text-zinc-400 transition hover:text-zinc-200"
-              >
-                Escalated from{" "}
-                {formatTicketNumber(
-                  incident.sourceTicket.number,
-                )}{" "}
-                · {incident.sourceTicket.title}
-              </Link>
-            )}
+            <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-[#999ca7]">
+              <span>
+                Started{" "}
+                {incident.createdAt.toLocaleDateString(
+                  "en-US",
+                  {
+                    month: "long",
+                    day: "numeric",
+                    year: "numeric",
+                  },
+                )}
+              </span>
 
-            <section className="mt-8 rounded-xl border border-zinc-800 bg-zinc-900 p-6">
-              <h3 className="text-sm font-medium uppercase tracking-wider text-zinc-500">
-                Description
-              </h3>
+              {incident.sourceTicket && (
+                <>
+                  <span className="h-1 w-1 rounded-full bg-[#c7c9d0]" />
 
-              <p className="mt-4 whitespace-pre-wrap leading-7 text-zinc-300">
-                {incident.description}
-              </p>
+                  <Link
+                    href={`/workspaces/${incident.workspace.slug}/tickets/${incident.sourceTicket.number}`}
+                    className="font-medium text-[#6d5dfc] transition hover:text-[#5445d9]"
+                  >
+                    Escalated from{" "}
+                    {formatTicketNumber(
+                      incident.sourceTicket.number,
+                    )}
+                  </Link>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-8 grid gap-6 xl:grid-cols-[1fr_330px]">
+          <div className="space-y-6">
+            <section className="relative overflow-hidden rounded-[24px] bg-[#17182b] p-6 text-white shadow-xl shadow-[#17182b]/10 sm:p-8">
+              <div className="absolute -right-20 -top-20 h-56 w-56 rounded-full bg-[#ef5d67]/12 blur-3xl" />
+
+              <div className="relative">
+                <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-start">
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#ff8e96]">
+                      Response context
+                    </p>
+
+                    <h2 className="mt-3 text-xl font-semibold">
+                      Incident summary
+                    </h2>
+                  </div>
+
+                  <div className="flex items-center gap-2 rounded-full bg-white/[0.06] px-3 py-2 text-xs text-white/45">
+                    <span
+                      className={`h-2 w-2 rounded-full ${
+                        active
+                          ? "bg-[#ef5d67]"
+                          : "bg-[#52cca2]"
+                      }`}
+                    />
+
+                    {active
+                      ? "Response active"
+                      : "Resolved"}
+                  </div>
+                </div>
+
+                <p className="mt-7 whitespace-pre-wrap text-[15px] leading-7 text-white/60">
+                  {incident.description}
+                </p>
+
+                <div className="mt-8 grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-xl border border-white/[0.06] bg-white/[0.045] p-4">
+                    <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-white/25">
+                      Service
+                    </p>
+
+                    <p className="mt-2 text-sm font-medium">
+                      {incident.service?.name ??
+                        "No service"}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl border border-white/[0.06] bg-white/[0.045] p-4">
+                    <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-white/25">
+                      Owner
+                    </p>
+
+                    <p className="mt-2 truncate text-sm font-medium">
+                      {incident.owner?.userId ??
+                        "Unassigned"}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl border border-white/[0.06] bg-white/[0.045] p-4">
+                    <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-white/25">
+                      Source
+                    </p>
+
+                    <p className="mt-2 text-sm font-medium">
+                      {incident.sourceTicket
+                        ? formatTicketNumber(
+                            incident.sourceTicket.number,
+                          )
+                        : "Manual"}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </section>
 
-            <section className="mt-8">
-              <h3 className="text-lg font-semibold">
-                Incident timeline
-              </h3>
+            <section className="overflow-hidden rounded-[24px] border border-[#e4e6ed] bg-white shadow-[0_10px_35px_rgba(37,39,64,0.045)]">
+              <div className="flex items-center justify-between border-b border-[#eff0f4] px-6 py-5 sm:px-8">
+                <div>
+                  <h2 className="font-semibold">
+                    Response timeline
+                  </h2>
 
-              <div className="mt-4 space-y-3">
+                  <p className="mt-1 text-xs text-[#9a9daa]">
+                    Operational history for this incident
+                  </p>
+                </div>
+
+                <span className="rounded-full bg-[#fff0f1] px-3 py-1.5 text-xs font-medium text-[#df5661]">
+                  {incident.activities.length} events
+                </span>
+              </div>
+
+              <div className="px-6 py-3 sm:px-8">
                 {incident.activities.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-zinc-800 p-6 text-sm text-zinc-500">
-                    No activity yet.
+                  <div className="py-10 text-center text-sm text-[#9a9daa]">
+                    No incident activity yet.
                   </div>
                 ) : (
-                  incident.activities.map((activity) => {
-                    const detail = getActivityDetail(
-                      activity.type,
-                      activity.metadata,
-                      incident.workspace.services,
-                      incident.workspace.memberships,
-                    );
+                  incident.activities.map(
+                    (activity, index) => {
+                      const detail = getActivityDetail(
+                        activity.type,
+                        activity.metadata,
+                        incident.workspace.services,
+                        incident.workspace.memberships,
+                      );
 
-                    return (
-                      <div
-                        key={activity.id}
-                        className="rounded-xl border border-zinc-800 bg-zinc-900 p-4"
-                      >
-                        <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
-                          <div>
-                            <p className="text-sm font-medium">
-                              {
-                                activityLabels[
-                                  activity.type
-                                ]
-                              }
-                            </p>
+                      return (
+                        <div
+                          key={activity.id}
+                          className="relative flex gap-4 py-5"
+                        >
+                          {index !==
+                            incident.activities.length -
+                              1 && (
+                            <div className="absolute left-[15px] top-10 h-[calc(100%-18px)] w-px bg-[#e7e8ee]" />
+                          )}
 
-                            {detail && (
-                              <p className="mt-1 text-sm text-zinc-400">
-                                {detail}
-                              </p>
-                            )}
-
-                            <p className="mt-2 text-xs text-zinc-600">
-                              {activity.actor?.userId ??
-                                "System"}
-                            </p>
+                          <div
+                            className={`relative z-10 mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-4 border-white text-[10px] font-bold shadow-sm ${
+                              activity.type ===
+                                "RESOLVED" ||
+                              activity.type ===
+                                "REOPENED"
+                                ? "bg-[#e7f8ef] text-[#279565]"
+                                : activity.type ===
+                                    "CREATED"
+                                  ? "bg-[#fff0f1] text-[#df5661]"
+                                  : "bg-[#eeeaff] text-[#6d5dfc]"
+                            }`}
+                          >
+                            {activity.type ===
+                            "TICKET_LINKED"
+                              ? "↗"
+                              : activity.type ===
+                                  "CREATED"
+                                ? "!"
+                                : "•"}
                           </div>
 
-                          <time className="shrink-0 text-xs text-zinc-600">
-                            {activity.createdAt.toLocaleString(
-                              "en-US",
-                              {
-                                month: "short",
-                                day: "numeric",
-                                year: "numeric",
-                                hour: "numeric",
-                                minute: "2-digit",
-                              },
-                            )}
-                          </time>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-start">
+                              <div>
+                                <p className="text-sm font-semibold text-[#393b49]">
+                                  {
+                                    activityLabels[
+                                      activity.type
+                                    ]
+                                  }
+                                </p>
+
+                                {detail && (
+                                  <p className="mt-1 text-sm text-[#747784]">
+                                    {detail}
+                                  </p>
+                                )}
+
+                                <p className="mt-2 text-xs text-[#aaaeba]">
+                                  {activity.actor?.userId ??
+                                    "System"}
+                                </p>
+                              </div>
+
+                              <time className="shrink-0 text-xs text-[#b0b3bc]">
+                                {activity.createdAt.toLocaleString(
+                                  "en-US",
+                                  {
+                                    month: "short",
+                                    day: "numeric",
+                                    hour: "numeric",
+                                    minute: "2-digit",
+                                  },
+                                )}
+                              </time>
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })
+                      );
+                    },
+                  )
                 )}
               </div>
             </section>
           </div>
 
-          <aside className="space-y-4">
+          <aside className="space-y-5">
             {canManage && (
               <IncidentDetailsForm
                 workspaceId={incident.workspace.id}
@@ -354,94 +523,49 @@ export default async function IncidentDetailPage({
               />
             )}
 
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
-              <h3 className="font-semibold">
-                Incident details
-              </h3>
+            {incident.sourceTicket && (
+              <Link
+                href={`/workspaces/${incident.workspace.slug}/tickets/${incident.sourceTicket.number}`}
+                className="group block rounded-[22px] border border-[#e4e6ed] bg-white p-5 transition hover:border-[#d8d3ff] hover:shadow-[0_10px_30px_rgba(37,39,64,0.05)]"
+              >
+                <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[#9a9daa]">
+                  Source ticket
+                </p>
 
-              <dl className="mt-5 space-y-4 text-sm">
-                <div>
-                  <dt className="text-zinc-500">
-                    Status
-                  </dt>
+                <p className="mt-3 text-sm font-semibold text-[#6d5dfc]">
+                  {formatTicketNumber(
+                    incident.sourceTicket.number,
+                  )}
+                </p>
 
-                  <dd className="mt-1 text-zinc-200">
-                    {statusLabels[incident.status]}
-                  </dd>
+                <p className="mt-2 text-sm leading-6 text-[#666a77]">
+                  {incident.sourceTicket.title}
+                </p>
+
+                <span className="mt-4 inline-block text-xs font-semibold text-[#6d5dfc] transition group-hover:translate-x-1">
+                  View ticket →
+                </span>
+              </Link>
+            )}
+
+            {incident.resolvedAt && (
+              <div className="rounded-[22px] border border-[#cfeadd] bg-[#effaf5] p-5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-[#2e9c6b]">
+                  ✓
                 </div>
 
-                <div>
-                  <dt className="text-zinc-500">
-                    Priority
-                  </dt>
+                <p className="mt-4 text-sm font-semibold text-[#277b59]">
+                  Incident resolved
+                </p>
 
-                  <dd className="mt-1 text-zinc-200">
-                    {incident.priority} ·{" "}
-                    {priorityLabels[incident.priority]}
-                  </dd>
-                </div>
-
-                <div>
-                  <dt className="text-zinc-500">
-                    Service
-                  </dt>
-
-                  <dd className="mt-1 text-zinc-200">
-                    {incident.service?.name ?? "None"}
-                  </dd>
-                </div>
-
-                <div>
-                  <dt className="text-zinc-500">
-                    Owner
-                  </dt>
-
-                  <dd className="mt-1 break-all text-zinc-200">
-                    {incident.owner?.userId ??
-                      "Unassigned"}
-                  </dd>
-                </div>
-
-                <div>
-                  <dt className="text-zinc-500">
-                    Source ticket
-                  </dt>
-
-                  <dd className="mt-1 text-zinc-200">
-                    {incident.sourceTicket
-                      ? formatTicketNumber(
-                          incident.sourceTicket.number,
-                        )
-                      : "None"}
-                  </dd>
-                </div>
-
-                <div>
-                  <dt className="text-zinc-500">
-                    Created
-                  </dt>
-
-                  <dd className="mt-1 text-zinc-200">
-                    {incident.createdAt.toLocaleString()}
-                  </dd>
-                </div>
-
-                {incident.resolvedAt && (
-                  <div>
-                    <dt className="text-zinc-500">
-                      Resolved
-                    </dt>
-
-                    <dd className="mt-1 text-zinc-200">
-                      {incident.resolvedAt.toLocaleString()}
-                    </dd>
-                  </div>
-                )}
-              </dl>
-            </div>
+                <p className="mt-1 text-xs text-[#68a18a]">
+                  {incident.resolvedAt.toLocaleString()}
+                </p>
+              </div>
+            )}
           </aside>
         </div>
       </div>
-    </main>
+    </WorkspaceShell>
   );
 }
