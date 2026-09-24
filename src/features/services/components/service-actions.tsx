@@ -29,17 +29,26 @@ export function ServiceActions({
   service,
 }: ServiceActionsProps) {
   const [updateState, updateAction, updatePending] =
-    useActionState(updateServiceAction, initialState);
+    useActionState(
+      updateServiceAction,
+      initialState,
+    );
 
   const [archiveState, archiveAction, archivePending] =
-    useActionState(archiveServiceAction, initialState);
+    useActionState(
+      archiveServiceAction,
+      initialState,
+    );
 
   const fieldClass =
     "w-full rounded-xl border border-[#dfe1e8] bg-[#fafbfc] px-3.5 py-2.5 text-sm text-[#292b39] outline-none transition focus:border-[#6d5dfc] focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/5";
 
   return (
     <div className="mt-5 border-t border-[#eff0f4] pt-5">
-      <form action={updateAction} className="space-y-3">
+      <form
+        action={updateAction}
+        className="space-y-3"
+      >
         <input
           type="hidden"
           name="workspaceId"
@@ -76,17 +85,15 @@ export function ServiceActions({
           className={`${fieldClass} resize-none`}
         />
 
-        <div className="flex items-center justify-between gap-3">
-          <button
-            type="submit"
-            disabled={updatePending}
-            className="rounded-xl bg-[#17182b] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-[#292a40] disabled:opacity-50"
-          >
-            {updatePending ? "Saving..." : "Save changes"}
-          </button>
-
-          <form />
-        </div>
+        <button
+          type="submit"
+          disabled={updatePending}
+          className="rounded-xl bg-[#17182b] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-[#292a40] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {updatePending
+            ? "Saving..."
+            : "Save changes"}
+        </button>
       </form>
 
       {updateState.status !== "idle" && (
@@ -103,7 +110,7 @@ export function ServiceActions({
 
       <form
         action={archiveAction}
-        className="mt-4 flex items-center justify-between rounded-xl bg-[#fff7f7] px-3.5 py-3"
+        className="mt-4 flex items-center justify-between gap-4 rounded-xl bg-[#fff7f7] px-3.5 py-3"
       >
         <input
           type="hidden"
@@ -138,9 +145,11 @@ export function ServiceActions({
         <button
           type="submit"
           disabled={archivePending}
-          className="shrink-0 text-xs font-semibold text-[#df5661] transition hover:text-[#c73f4a] disabled:opacity-50"
+          className="shrink-0 text-xs font-semibold text-[#df5661] transition hover:text-[#c73f4a] disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {archivePending ? "Archiving..." : "Archive"}
+          {archivePending
+            ? "Archiving..."
+            : "Archive"}
         </button>
       </form>
     </div>
