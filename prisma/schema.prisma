@@ -44,6 +44,24 @@ enum TicketActivityType {
   INCIDENT_LINKED
 }
 
+enum IncidentStatus {
+  OPEN
+  INVESTIGATING
+  MONITORING
+  RESOLVED
+}
+
+enum IncidentActivityType {
+  CREATED
+  STATUS_CHANGED
+  PRIORITY_CHANGED
+  OWNER_CHANGED
+  SERVICE_CHANGED
+  TICKET_LINKED
+  RESOLVED
+  REOPENED
+}
+
 model Workspace {
   id               String   @id @default(cuid())
   name             String   @db.VarChar(100)
@@ -53,11 +71,13 @@ model Workspace {
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
-  memberships    Membership[]
-  invitations    Invitation[]
-  services       Service[]
-  tickets        Ticket[]
-  ticketActivity TicketActivity[]
+  memberships        Membership[]
+  invitations        Invitation[]
+  services           Service[]
+  tickets            Ticket[]
+  ticketActivity     TicketActivity[]
+  incidents          Incident[]
+  incidentActivities IncidentActivity[]
 
   @@map("workspaces")
 }
@@ -72,11 +92,13 @@ model Membership {
   createdAt   DateTime      @default(now()) @map("created_at")
   updatedAt   DateTime      @updatedAt @map("updated_at")
 
-  workspace        Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  sentInvitations  Invitation[]     @relation("InvitationsSent")
-  reportedTickets  Ticket[]         @relation("TicketReporter")
-  assignedTickets  Ticket[]         @relation("TicketAssignee")
-  ticketActivities TicketActivity[] @relation("TicketActivityActor")
+  workspace          Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  sentInvitations    Invitation[]       @relation("InvitationsSent")
+  reportedTickets    Ticket[]           @relation("TicketReporter")
+  assignedTickets    Ticket[]           @relation("TicketAssignee")
+  ticketActivities   TicketActivity[]   @relation("TicketActivityActor")
+  ownedIncidents     Incident[]         @relation("IncidentOwner")
+  incidentActivities IncidentActivity[] @relation("IncidentActivityActor")
 
   @@unique([workspaceId, userId])
   @@index([userId])
@@ -116,8 +138,9 @@ model Service {
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   tickets   Ticket[]
+  incidents Incident[]
 
   @@unique([workspaceId, slug])
   @@index([workspaceId, archivedAt])
@@ -148,10 +171,11 @@ model Ticket {
   createdAt            DateTime     @default(now()) @map("created_at")
   updatedAt            DateTime     @updatedAt @map("updated_at")
 
-  workspace Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  service   Service?    @relation(fields: [serviceId], references: [id], onDelete: Restrict)
-  reporter  Membership  @relation("TicketReporter", fields: [reporterMembershipId], references: [id], onDelete: Restrict)
-  assignee  Membership? @relation("TicketAssignee", fields: [assigneeMembershipId], references: [id], onDelete: Restrict)
+  workspace         Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  service           Service?    @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  reporter          Membership  @relation("TicketReporter", fields: [reporterMembershipId], references: [id], onDelete: Restrict)
+  assignee          Membership? @relation("TicketAssignee", fields: [assigneeMembershipId], references: [id], onDelete: Restrict)
+  escalatedIncident Incident?   @relation("IncidentSourceTicket")
 
   activities TicketActivity[]
 
@@ -181,4 +205,53 @@ model TicketActivity {
   @@index([workspaceId, ticketId, createdAt])
   @@index([actorMembershipId])
   @@map("ticket_activity")
+}
+
+model Incident {
+  id                String         @id @default(cuid())
+  workspaceId       String         @map("workspace_id")
+  number            Int
+  title             String         @db.VarChar(200)
+  description       String         @db.Text
+  priority          Priority       @default(P1)
+  status            IncidentStatus @default(OPEN)
+  serviceId         String?        @map("service_id")
+  ownerMembershipId String?        @map("owner_membership_id")
+  sourceTicketId    String?        @unique @map("source_ticket_id")
+  resolvedAt        DateTime?      @map("resolved_at")
+  createdAt         DateTime       @default(now()) @map("created_at")
+  updatedAt         DateTime       @updatedAt @map("updated_at")
+
+  workspace    Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  service      Service?    @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  owner        Membership? @relation("IncidentOwner", fields: [ownerMembershipId], references: [id], onDelete: Restrict)
+  sourceTicket Ticket?     @relation("IncidentSourceTicket", fields: [sourceTicketId], references: [id], onDelete: Restrict)
+
+  activities IncidentActivity[]
+
+  @@unique([workspaceId, number])
+  @@index([workspaceId, status])
+  @@index([workspaceId, priority])
+  @@index([workspaceId, serviceId])
+  @@index([workspaceId, ownerMembershipId])
+  @@index([workspaceId, createdAt])
+  @@map("incidents")
+}
+
+model IncidentActivity {
+  id                String               @id @default(cuid())
+  workspaceId       String               @map("workspace_id")
+  incidentId        String               @map("incident_id")
+  actorMembershipId String?              @map("actor_membership_id")
+  type              IncidentActivityType
+  metadata          Json?
+  createdAt         DateTime             @default(now()) @map("created_at")
+
+  workspace Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  incident  Incident    @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  actor     Membership? @relation("IncidentActivityActor", fields: [actorMembershipId], references: [id], onDelete: Restrict)
+
+  @@index([workspaceId, incidentId, createdAt])
+  @@index([actorMembershipId])
+  @@map("incident_activity")
 }
