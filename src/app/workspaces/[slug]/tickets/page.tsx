@@ -178,9 +178,14 @@ export default async function TicketsPage({
                         </span>
                       </div>
 
-                      <h3 className="mt-3 text-base font-semibold">
-                        {ticket.title}
-                      </h3>
+                     <h3 className="mt-3 text-base font-semibold">
+  <Link
+    href={`/workspaces/${workspace.slug}/tickets/${ticket.number}`}
+    className="transition hover:text-zinc-300"
+  >
+    {ticket.title}
+  </Link>
+</h3>
 
                       <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-sm text-zinc-500">
                         <span>
