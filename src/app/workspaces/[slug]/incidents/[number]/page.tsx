@@ -1,13 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { EscalateTicketButton } from "@/features/incidents/components/escalate-ticket-button";
-import { TicketDetailsForm } from "@/features/tickets/components/ticket-details-form";
-import { getTicketDetail } from "@/features/tickets/server/get-ticket-detail";
+import { IncidentDetailsForm } from "@/features/incidents/components/incident-details-form";
+import { getIncidentDetail } from "@/features/incidents/server/get-incident-detail";
 import { WorkspaceNav } from "@/features/workspaces/components/workspace-nav";
 import { hasWorkspacePermission } from "@/server/authorization/workspace-permissions";
 
-type TicketDetailPageProps = {
+type IncidentDetailPageProps = {
   params: Promise<{
     slug: string;
     number: string;
@@ -23,50 +22,28 @@ const priorityLabels = {
 
 const statusLabels = {
   OPEN: "Open",
-  IN_PROGRESS: "In progress",
-  WAITING: "Waiting",
+  INVESTIGATING: "Investigating",
+  MONITORING: "Monitoring",
   RESOLVED: "Resolved",
-  CLOSED: "Closed",
 } as const;
 
 const activityLabels = {
-  CREATED: "Ticket created",
+  CREATED: "Incident created",
   STATUS_CHANGED: "Status changed",
   PRIORITY_CHANGED: "Priority changed",
-  ASSIGNEE_CHANGED: "Assignee changed",
+  OWNER_CHANGED: "Owner changed",
   SERVICE_CHANGED: "Service changed",
-  COMMENT_ADDED: "Comment added",
-  SLA_WARNING: "SLA warning",
-  SLA_BREACHED: "SLA breached",
-  RESOLVED: "Ticket resolved",
-  CLOSED: "Ticket closed",
-  REOPENED: "Ticket reopened",
-  INCIDENT_LINKED: "Incident linked",
+  TICKET_LINKED: "Ticket linked",
+  RESOLVED: "Incident resolved",
+  REOPENED: "Incident reopened",
 } as const;
+
+function formatIncidentNumber(number: number) {
+  return `INC-${String(number).padStart(4, "0")}`;
+}
 
 function formatTicketNumber(number: number) {
   return `TKT-${String(number).padStart(4, "0")}`;
-}
-
-function getMetadataValues(metadata: unknown) {
-  if (
-    !metadata ||
-    typeof metadata !== "object" ||
-    Array.isArray(metadata)
-  ) {
-    return {
-      from: null,
-      to: null,
-    };
-  }
-
-  const record = metadata as Record<string, unknown>;
-
-  return {
-    from:
-      typeof record.from === "string" ? record.from : null,
-    to: typeof record.to === "string" ? record.to : null,
-  };
 }
 
 function formatStatus(value: string | null) {
@@ -78,6 +55,36 @@ function formatStatus(value: string | null) {
     .toLowerCase()
     .replaceAll("_", " ")
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function getMetadataRecord(metadata: unknown) {
+  if (
+    !metadata ||
+    typeof metadata !== "object" ||
+    Array.isArray(metadata)
+  ) {
+    return null;
+  }
+
+  return metadata as Record<string, unknown>;
+}
+
+function getStringValue(
+  record: Record<string, unknown> | null,
+  key: string,
+) {
+  const value = record?.[key];
+
+  return typeof value === "string" ? value : null;
+}
+
+function getNumberValue(
+  record: Record<string, unknown> | null,
+  key: string,
+) {
+  const value = record?.[key];
+
+  return typeof value === "number" ? value : null;
 }
 
 function getActivityDetail(
@@ -92,12 +99,14 @@ function getActivityDetail(
     userId: string;
   }>,
 ) {
-  const { from, to } = getMetadataValues(metadata);
+  const record = getMetadataRecord(metadata);
+
+  const from = getStringValue(record, "from");
+  const to = getStringValue(record, "to");
 
   if (
     type === "STATUS_CHANGED" ||
     type === "RESOLVED" ||
-    type === "CLOSED" ||
     type === "REOPENED"
   ) {
     return `${formatStatus(from)} → ${formatStatus(to)}`;
@@ -119,46 +128,67 @@ function getActivityDetail(
     return `${oldService} → ${newService}`;
   }
 
-  if (type === "ASSIGNEE_CHANGED") {
-    const oldAssignee =
+  if (type === "OWNER_CHANGED") {
+    const oldOwner =
       members.find((member) => member.id === from)?.userId ??
       (from ? "Unknown member" : "Unassigned");
 
-    const newAssignee =
+    const newOwner =
       members.find((member) => member.id === to)?.userId ??
       (to ? "Unknown member" : "Unassigned");
 
-    return `${oldAssignee} → ${newAssignee}`;
+    return `${oldOwner} → ${newOwner}`;
+  }
+
+  if (type === "TICKET_LINKED") {
+    const ticketNumber = getNumberValue(
+      record,
+      "ticketNumber",
+    );
+
+    return ticketNumber
+      ? formatTicketNumber(ticketNumber)
+      : "Source ticket linked";
+  }
+
+  if (type === "CREATED") {
+    const priority = getStringValue(record, "priority");
+    const status = getStringValue(record, "status");
+
+    if (priority && status) {
+      return `${priority} · ${formatStatus(status)}`;
+    }
   }
 
   return null;
 }
 
-export default async function TicketDetailPage({
+export default async function IncidentDetailPage({
   params,
-}: TicketDetailPageProps) {
+}: IncidentDetailPageProps) {
   const { slug, number } = await params;
 
-  const ticketNumber = Number(number);
+  const incidentNumber = Number(number);
 
-  if (!Number.isInteger(ticketNumber) || ticketNumber < 1) {
+  if (
+    !Number.isInteger(incidentNumber) ||
+    incidentNumber < 1
+  ) {
     notFound();
   }
 
-  const data = await getTicketDetail(slug, ticketNumber);
+  const data = await getIncidentDetail(
+    slug,
+    incidentNumber,
+  );
 
   if (!data) {
     notFound();
   }
 
-  const { ticket, currentMembership } = data;
+  const { incident, currentMembership } = data;
 
-  const canManageTickets = hasWorkspacePermission(
-    currentMembership.role,
-    "tickets:manage",
-  );
-
-  const canManageIncidents = hasWorkspacePermission(
+  const canManage = hasWorkspacePermission(
     currentMembership.role,
     "incidents:manage",
   );
@@ -173,7 +203,7 @@ export default async function TicketDetailPage({
 
           <div className="mt-1 flex items-center gap-3">
             <h1 className="text-xl font-semibold">
-              {ticket.workspace.name}
+              {incident.workspace.name}
             </h1>
 
             <span className="rounded-full border border-zinc-700 px-2.5 py-1 text-xs font-medium text-zinc-300">
@@ -183,36 +213,51 @@ export default async function TicketDetailPage({
         </div>
       </header>
 
-      <WorkspaceNav workspaceSlug={ticket.workspace.slug} />
+      <WorkspaceNav
+        workspaceSlug={incident.workspace.slug}
+      />
 
       <div className="mx-auto max-w-7xl px-6 py-10">
         <Link
-          href={`/workspaces/${ticket.workspace.slug}/tickets`}
+          href={`/workspaces/${incident.workspace.slug}/incidents`}
           className="text-sm text-zinc-500 transition hover:text-zinc-300"
         >
-          ← Back to tickets
+          ← Back to incidents
         </Link>
 
         <div className="mt-6 grid gap-8 lg:grid-cols-[1fr_340px]">
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm font-medium text-zinc-500">
-                {formatTicketNumber(ticket.number)}
+                {formatIncidentNumber(incident.number)}
+              </span>
+
+              <span className="rounded-full border border-red-900 bg-red-950/30 px-2.5 py-1 text-xs text-red-300">
+                {incident.priority} ·{" "}
+                {priorityLabels[incident.priority]}
               </span>
 
               <span className="rounded-full border border-zinc-700 px-2.5 py-1 text-xs text-zinc-300">
-                {ticket.priority} ·{" "}
-                {priorityLabels[ticket.priority]}
-              </span>
-
-              <span className="rounded-full border border-zinc-700 px-2.5 py-1 text-xs text-zinc-300">
-                {statusLabels[ticket.status]}
+                {statusLabels[incident.status]}
               </span>
             </div>
 
             <h2 className="mt-4 text-3xl font-semibold tracking-tight">
-              {ticket.title}
+              {incident.title}
             </h2>
+
+            {incident.sourceTicket && (
+              <Link
+                href={`/workspaces/${incident.workspace.slug}/tickets/${incident.sourceTicket.number}`}
+                className="mt-4 inline-block text-sm text-zinc-400 transition hover:text-zinc-200"
+              >
+                Escalated from{" "}
+                {formatTicketNumber(
+                  incident.sourceTicket.number,
+                )}{" "}
+                · {incident.sourceTicket.title}
+              </Link>
+            )}
 
             <section className="mt-8 rounded-xl border border-zinc-800 bg-zinc-900 p-6">
               <h3 className="text-sm font-medium uppercase tracking-wider text-zinc-500">
@@ -220,27 +265,27 @@ export default async function TicketDetailPage({
               </h3>
 
               <p className="mt-4 whitespace-pre-wrap leading-7 text-zinc-300">
-                {ticket.description}
+                {incident.description}
               </p>
             </section>
 
             <section className="mt-8">
               <h3 className="text-lg font-semibold">
-                Activity
+                Incident timeline
               </h3>
 
               <div className="mt-4 space-y-3">
-                {ticket.activities.length === 0 ? (
+                {incident.activities.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-zinc-800 p-6 text-sm text-zinc-500">
                     No activity yet.
                   </div>
                 ) : (
-                  ticket.activities.map((activity) => {
+                  incident.activities.map((activity) => {
                     const detail = getActivityDetail(
                       activity.type,
                       activity.metadata,
-                      ticket.workspace.services,
-                      ticket.workspace.memberships,
+                      incident.workspace.services,
+                      incident.workspace.memberships,
                     );
 
                     return (
@@ -292,85 +337,106 @@ export default async function TicketDetailPage({
           </div>
 
           <aside className="space-y-4">
-            {canManageTickets && (
-              <TicketDetailsForm
-                workspaceId={ticket.workspace.id}
-                workspaceSlug={ticket.workspace.slug}
-                ticketId={ticket.id}
-                ticketNumber={ticket.number}
-                status={ticket.status}
-                priority={ticket.priority}
-                serviceId={ticket.service?.id ?? null}
-                assigneeMembershipId={
-                  ticket.assignee?.id ?? null
+            {canManage && (
+              <IncidentDetailsForm
+                workspaceId={incident.workspace.id}
+                workspaceSlug={incident.workspace.slug}
+                incidentId={incident.id}
+                incidentNumber={incident.number}
+                status={incident.status}
+                priority={incident.priority}
+                serviceId={incident.service?.id ?? null}
+                ownerMembershipId={
+                  incident.owner?.id ?? null
                 }
-                services={ticket.workspace.services}
-                members={ticket.workspace.memberships}
-              />
-            )}
-
-            {canManageIncidents && (
-              <EscalateTicketButton
-                workspaceId={ticket.workspace.id}
-                workspaceSlug={ticket.workspace.slug}
-                ticketId={ticket.id}
-                ticketNumber={ticket.number}
+                services={incident.workspace.services}
+                members={incident.workspace.memberships}
               />
             )}
 
             <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
               <h3 className="font-semibold">
-                Ticket details
+                Incident details
               </h3>
 
               <dl className="mt-5 space-y-4 text-sm">
                 <div>
-                  <dt className="text-zinc-500">Status</dt>
-                  <dd className="mt-1 text-zinc-200">
-                    {statusLabels[ticket.status]}
-                  </dd>
-                </div>
+                  <dt className="text-zinc-500">
+                    Status
+                  </dt>
 
-                <div>
-                  <dt className="text-zinc-500">Priority</dt>
                   <dd className="mt-1 text-zinc-200">
-                    {ticket.priority} ·{" "}
-                    {priorityLabels[ticket.priority]}
-                  </dd>
-                </div>
-
-                <div>
-                  <dt className="text-zinc-500">Service</dt>
-                  <dd className="mt-1 text-zinc-200">
-                    {ticket.service?.name ?? "None"}
+                    {statusLabels[incident.status]}
                   </dd>
                 </div>
 
                 <div>
                   <dt className="text-zinc-500">
-                    Assignee
+                    Priority
                   </dt>
+
+                  <dd className="mt-1 text-zinc-200">
+                    {incident.priority} ·{" "}
+                    {priorityLabels[incident.priority]}
+                  </dd>
+                </div>
+
+                <div>
+                  <dt className="text-zinc-500">
+                    Service
+                  </dt>
+
+                  <dd className="mt-1 text-zinc-200">
+                    {incident.service?.name ?? "None"}
+                  </dd>
+                </div>
+
+                <div>
+                  <dt className="text-zinc-500">
+                    Owner
+                  </dt>
+
                   <dd className="mt-1 break-all text-zinc-200">
-                    {ticket.assignee?.userId ??
+                    {incident.owner?.userId ??
                       "Unassigned"}
                   </dd>
                 </div>
 
                 <div>
                   <dt className="text-zinc-500">
-                    Reporter
+                    Source ticket
                   </dt>
-                  <dd className="mt-1 break-all text-zinc-200">
-                    {ticket.reporter.userId}
+
+                  <dd className="mt-1 text-zinc-200">
+                    {incident.sourceTicket
+                      ? formatTicketNumber(
+                          incident.sourceTicket.number,
+                        )
+                      : "None"}
                   </dd>
                 </div>
 
                 <div>
-                  <dt className="text-zinc-500">Created</dt>
+                  <dt className="text-zinc-500">
+                    Created
+                  </dt>
+
                   <dd className="mt-1 text-zinc-200">
-                    {ticket.createdAt.toLocaleString()}
+                    {incident.createdAt.toLocaleString()}
                   </dd>
                 </div>
+
+                {incident.resolvedAt && (
+                  <div>
+                    <dt className="text-zinc-500">
+                      Resolved
+                    </dt>
+
+                    <dd className="mt-1 text-zinc-200">
+                      {incident.resolvedAt.toLocaleString()}
+                    </dd>
+                  </div>
+                )}
               </dl>
             </div>
           </aside>

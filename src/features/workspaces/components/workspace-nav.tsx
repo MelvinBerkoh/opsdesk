@@ -39,6 +39,13 @@ export function WorkspaceNav({
         `/workspaces/${workspaceSlug}/tickets`,
       ),
     },
+    {
+      label: "Incidents",
+      href: `/workspaces/${workspaceSlug}/incidents`,
+      active: pathname.startsWith(
+        `/workspaces/${workspaceSlug}/incidents`,
+      ),
+    },
   ];
 
   return (
@@ -57,13 +64,6 @@ export function WorkspaceNav({
             {item.label}
           </Link>
         ))}
-
-        <span
-          className="cursor-not-allowed border-b-2 border-transparent px-3 py-3 text-sm font-medium text-zinc-700"
-          title="Coming soon"
-        >
-          Incidents
-        </span>
       </div>
     </nav>
   );
