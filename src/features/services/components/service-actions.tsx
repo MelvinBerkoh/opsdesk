@@ -29,14 +29,26 @@ export function ServiceActions({
   service,
 }: ServiceActionsProps) {
   const [updateState, updateAction, updatePending] =
-    useActionState(updateServiceAction, initialState);
+    useActionState(
+      updateServiceAction,
+      initialState,
+    );
 
   const [archiveState, archiveAction, archivePending] =
-    useActionState(archiveServiceAction, initialState);
+    useActionState(
+      archiveServiceAction,
+      initialState,
+    );
+
+  const fieldClass =
+    "w-full rounded-xl border border-[#dfe1e8] bg-[#fafbfc] px-3.5 py-2.5 text-sm text-[#292b39] outline-none transition focus:border-[#6d5dfc] focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/5";
 
   return (
-    <div className="mt-5 border-t border-zinc-800 pt-5">
-      <form action={updateAction} className="space-y-3">
+    <div className="mt-5 border-t border-[#eff0f4] pt-5">
+      <form
+        action={updateAction}
+        className="space-y-3"
+      >
         <input
           type="hidden"
           name="workspaceId"
@@ -62,7 +74,7 @@ export function ServiceActions({
           minLength={2}
           maxLength={100}
           defaultValue={service.name}
-          className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500"
+          className={fieldClass}
         />
 
         <textarea
@@ -70,15 +82,17 @@ export function ServiceActions({
           rows={3}
           maxLength={500}
           defaultValue={service.description ?? ""}
-          className="w-full resize-none rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500"
+          className={`${fieldClass} resize-none`}
         />
 
         <button
           type="submit"
           disabled={updatePending}
-          className="rounded-lg border border-zinc-700 px-3 py-2 text-sm font-medium text-zinc-200 transition hover:bg-zinc-800 disabled:opacity-50"
+          className="rounded-xl bg-[#17182b] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-[#292a40] disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {updatePending ? "Saving..." : "Save changes"}
+          {updatePending
+            ? "Saving..."
+            : "Save changes"}
         </button>
       </form>
 
@@ -86,15 +100,18 @@ export function ServiceActions({
         <p
           className={`mt-3 text-xs ${
             updateState.status === "error"
-              ? "text-red-400"
-              : "text-emerald-400"
+              ? "text-[#d74f5a]"
+              : "text-[#218363]"
           }`}
         >
           {updateState.message}
         </p>
       )}
 
-      <form action={archiveAction} className="mt-4">
+      <form
+        action={archiveAction}
+        className="mt-4 flex items-center justify-between gap-4 rounded-xl bg-[#fff7f7] px-3.5 py-3"
+      >
         <input
           type="hidden"
           name="workspaceId"
@@ -113,20 +130,28 @@ export function ServiceActions({
           value={service.id}
         />
 
+        <div>
+          <p className="text-xs font-medium text-[#7d6265]">
+            No longer supporting this service?
+          </p>
+
+          {archiveState.status === "error" && (
+            <p className="mt-1 text-xs text-[#d74f5a]">
+              {archiveState.message}
+            </p>
+          )}
+        </div>
+
         <button
           type="submit"
           disabled={archivePending}
-          className="text-sm font-medium text-red-400 transition hover:text-red-300 disabled:opacity-50"
+          className="shrink-0 text-xs font-semibold text-[#df5661] transition hover:text-[#c73f4a] disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {archivePending ? "Archiving..." : "Archive service"}
+          {archivePending
+            ? "Archiving..."
+            : "Archive"}
         </button>
       </form>
-
-      {archiveState.status === "error" && (
-        <p className="mt-3 text-xs text-red-400">
-          {archiveState.message}
-        </p>
-      )}
     </div>
   );
 }
