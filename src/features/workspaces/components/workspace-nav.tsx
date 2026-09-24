@@ -7,8 +7,6 @@ type WorkspaceNavProps = {
   workspaceSlug: string;
 };
 
-const futureItems = ["Services", "Tickets", "Incidents"];
-
 export function WorkspaceNav({
   workspaceSlug,
 }: WorkspaceNavProps) {
@@ -25,6 +23,20 @@ export function WorkspaceNav({
       href: `/workspaces/${workspaceSlug}/members`,
       active: pathname.startsWith(
         `/workspaces/${workspaceSlug}/members`,
+      ),
+    },
+    {
+      label: "Services",
+      href: `/workspaces/${workspaceSlug}/services`,
+      active: pathname.startsWith(
+        `/workspaces/${workspaceSlug}/services`,
+      ),
+    },
+    {
+      label: "Tickets",
+      href: `/workspaces/${workspaceSlug}/tickets`,
+      active: pathname.startsWith(
+        `/workspaces/${workspaceSlug}/tickets`,
       ),
     },
   ];
@@ -46,15 +58,12 @@ export function WorkspaceNav({
           </Link>
         ))}
 
-        {futureItems.map((item) => (
-          <span
-            key={item}
-            className="cursor-not-allowed border-b-2 border-transparent px-3 py-3 text-sm font-medium text-zinc-700"
-            title="Coming soon"
-          >
-            {item}
-          </span>
-        ))}
+        <span
+          className="cursor-not-allowed border-b-2 border-transparent px-3 py-3 text-sm font-medium text-zinc-700"
+          title="Coming soon"
+        >
+          Incidents
+        </span>
       </div>
     </nav>
   );
