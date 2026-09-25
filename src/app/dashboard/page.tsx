@@ -1,7 +1,9 @@
+import { UserButton } from "@clerk/nextjs";
 import { auth } from "@clerk/nextjs/server";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { OpsDeskLogo } from "@/components/brand/opsdesk-logo";
 import { getUserWorkspaces } from "@/features/workspaces/server/get-user-workspaces";
 
 export default async function DashboardPage() {
@@ -27,31 +29,39 @@ export default async function DashboardPage() {
         <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-6">
           <Link
             href="/"
-            className="flex items-center gap-3"
+            aria-label="OpsDesk home"
+            className="transition-opacity hover:opacity-90"
           >
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#6d5dfc] text-sm font-bold text-white shadow-lg shadow-[#6d5dfc]/20">
-              OD
-            </div>
-
-            <div>
-              <p className="text-base font-semibold tracking-tight">
-                OpsDesk
-              </p>
-
-              <p className="text-[10px] text-[#9a9daa]">
-                Operations Platform
-              </p>
-            </div>
+            <OpsDeskLogo
+              size={40}
+              showWordmark
+              subtitle
+            />
           </Link>
 
-          <div className="flex items-center gap-3">
-            <span className="hidden text-xs text-[#9a9daa] sm:block">
-              Workspace launcher
-            </span>
+          <div className="flex items-center gap-4">
+            <div className="hidden text-right sm:block">
+              <p className="text-xs font-semibold text-[#565967]">
+                Workspace launcher
+              </p>
 
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#eeeaff] text-xs font-semibold text-[#6d5dfc]">
-              OD
+              <p className="mt-0.5 text-[10px] text-[#a0a3ae]">
+                Choose where you want to work
+              </p>
             </div>
+
+            <div className="h-8 w-px bg-[#e7e8ee]" />
+
+            <UserButton
+              appearance={{
+                elements: {
+                  avatarBox:
+                    "h-10 w-10 rounded-xl",
+                  userButtonPopoverCard:
+                    "rounded-2xl shadow-xl",
+                },
+              }}
+            />
           </div>
         </div>
       </header>
@@ -59,11 +69,15 @@ export default async function DashboardPage() {
       <div className="relative z-10 mx-auto max-w-6xl px-6 py-16 lg:py-20">
         <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
           <div>
-            <p className="text-sm font-semibold text-[#6d5dfc]">
-              Welcome back
-            </p>
+            <div className="inline-flex items-center gap-2 rounded-full border border-[#dedafc] bg-[#f0edff] px-3 py-1.5">
+              <span className="h-2 w-2 rounded-full bg-[#6d5dfc]" />
 
-            <h1 className="mt-2 text-4xl font-semibold tracking-[-0.045em] sm:text-5xl">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.13em] text-[#6d5dfc]">
+                Your workspaces
+              </span>
+            </div>
+
+            <h1 className="mt-5 text-4xl font-semibold tracking-[-0.045em] sm:text-5xl">
               Where are we working?
             </h1>
 
@@ -76,9 +90,10 @@ export default async function DashboardPage() {
 
           <Link
             href="/workspaces/new"
-            className="inline-flex items-center justify-center rounded-xl bg-[#17182b] px-5 py-3 text-sm font-medium text-white shadow-lg shadow-[#17182b]/10 transition hover:-translate-y-0.5 hover:bg-[#27283e]"
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#17182b] px-5 py-3 text-sm font-medium text-white shadow-lg shadow-[#17182b]/10 transition hover:-translate-y-0.5 hover:bg-[#27283e]"
           >
-            + New workspace
+            <span className="text-base leading-none">+</span>
+            New workspace
           </Link>
         </div>
 
@@ -124,13 +139,19 @@ export default async function DashboardPage() {
                     </span>
                   </div>
 
-                  <h2 className="mt-8 text-xl font-semibold tracking-tight">
-                    {workspace.name}
-                  </h2>
+                  <div className="mt-8">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#b0b3bd]">
+                      Workspace
+                    </p>
 
-                  <p className="mt-1 text-xs text-[#a0a3ae]">
-                    {workspace.slug}
-                  </p>
+                    <h2 className="mt-2 text-xl font-semibold tracking-tight">
+                      {workspace.name}
+                    </h2>
+
+                    <p className="mt-1 text-xs text-[#a0a3ae]">
+                      {workspace.slug}
+                    </p>
+                  </div>
 
                   <div className="mt-7 flex items-center justify-between border-t border-[#eff0f4] pt-5">
                     <div>
@@ -159,10 +180,14 @@ export default async function DashboardPage() {
 
         <div className="mt-8 flex flex-col justify-between gap-3 rounded-2xl border border-[#e3e5ec] bg-white/65 px-5 py-4 text-xs text-[#9a9daa] backdrop-blur sm:flex-row sm:items-center">
           <span>
-            {workspaces.length} workspaces available
+            {workspaces.length}{" "}
+            {workspaces.length === 1
+              ? "workspace"
+              : "workspaces"}{" "}
+            available
           </span>
 
-          <span>
+          <span className="font-medium text-[#777a88]">
             Select a workspace to enter OpsDesk →
           </span>
         </div>

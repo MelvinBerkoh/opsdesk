@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { OpsDeskLogo } from "@/components/brand/opsdesk-logo";
+
 const workflowSteps = [
   {
     number: "01",
@@ -65,21 +67,14 @@ export default function HomePage() {
           <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-6">
             <Link
               href="/"
-              className="flex items-center gap-3"
+              aria-label="OpsDesk home"
+              className="transition-opacity hover:opacity-90"
             >
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#6d5dfc] text-sm font-bold shadow-lg shadow-black/20">
-                OD
-              </div>
-
-              <div>
-                <p className="text-base font-semibold tracking-tight">
-                  OpsDesk
-                </p>
-
-                <p className="text-[10px] text-white/40">
-                  Operations Platform
-                </p>
-              </div>
+              <OpsDeskLogo
+                size={40}
+                showWordmark
+                subtitle
+              />
             </Link>
 
             <nav className="hidden items-center gap-8 text-sm text-white/50 md:flex">
@@ -674,13 +669,10 @@ export default function HomePage() {
 
       <footer className="border-t border-[#e7e8ee] bg-white">
         <div className="mx-auto flex max-w-7xl flex-col justify-between gap-4 px-6 py-9 text-xs text-[#979aa5] sm:flex-row">
-          <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#6d5dfc] text-[10px] font-bold text-white">
-              OD
-            </div>
-
-            <span>OpsDesk</span>
-          </div>
+          <OpsDeskLogo
+            size={32}
+            showWordmark
+          />
 
           <span>
             Support · Services · Incident response

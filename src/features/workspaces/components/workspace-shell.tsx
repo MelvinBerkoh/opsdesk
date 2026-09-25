@@ -6,6 +6,8 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { OpsDeskLogo } from "@/components/brand/opsdesk-logo";
+
 type WorkspaceRole =
   | "OWNER"
   | "ADMIN"
@@ -148,28 +150,21 @@ export function WorkspaceShell({
         <div className="flex h-[76px] items-center border-b border-white/[0.06] px-6">
           <Link
             href="/"
-            className="flex items-center gap-3"
+            aria-label="OpsDesk home"
+            className="transition-opacity hover:opacity-90"
           >
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#6d5dfc] text-xs font-bold text-white shadow-lg shadow-black/20">
-              OD
-            </div>
-
-            <div>
-              <p className="text-sm font-semibold tracking-tight">
-                OpsDesk
-              </p>
-
-              <p className="mt-0.5 text-[9px] text-white/30">
-                Operations Platform
-              </p>
-            </div>
+            <OpsDeskLogo
+              size={38}
+              showWordmark
+              subtitle
+            />
           </Link>
         </div>
 
         <div className="px-4 pt-5">
           <Link
             href="/dashboard"
-            className="block rounded-2xl border border-white/[0.06] bg-white/[0.045] p-3.5 transition hover:bg-white/[0.07]"
+            className="group block rounded-2xl border border-white/[0.06] bg-white/[0.045] p-3.5 transition hover:border-white/[0.09] hover:bg-white/[0.07]"
           >
             <div className="flex items-center gap-3">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#6d5dfc]/20 text-xs font-bold text-[#aaa1ff]">
@@ -190,7 +185,7 @@ export function WorkspaceShell({
                 </div>
               </div>
 
-              <span className="text-xs text-white/20">
+              <span className="text-xs text-white/20 transition group-hover:text-white/45">
                 ↕
               </span>
             </div>
@@ -254,9 +249,13 @@ export function WorkspaceShell({
             <div className="flex min-w-0 items-center gap-3">
               <Link
                 href="/"
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#6d5dfc] text-xs font-bold text-white lg:hidden"
+                aria-label="OpsDesk home"
+                className="lg:hidden"
               >
-                OD
+                <OpsDeskLogo
+                  size={36}
+                  showWordmark={false}
+                />
               </Link>
 
               <div className="min-w-0">
@@ -288,7 +287,7 @@ export function WorkspaceShell({
 
               <div className="hidden h-8 w-px bg-[#e7e8ee] sm:block" />
 
-              <div className="flex items-center gap-3 rounded-xl border border-transparent px-1.5 py-1">
+              <div className="flex items-center gap-3">
                 <div className="hidden text-right xl:block">
                   <p className="max-w-[150px] truncate text-xs font-semibold text-[#343643]">
                     {workspaceName}
@@ -304,9 +303,9 @@ export function WorkspaceShell({
                     elements: {
                       avatarBox:
                         "h-9 w-9 rounded-xl",
-                    userButtonPopoverCard:
+                      userButtonPopoverCard:
                         "rounded-2xl shadow-xl",
-                  },
+                    },
                   }}
                 />
               </div>
