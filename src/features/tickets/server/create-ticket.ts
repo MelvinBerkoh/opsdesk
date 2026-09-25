@@ -1,11 +1,15 @@
 import { z } from "zod";
 
+import { calculateTicketSlaDeadlines } from "@/features/tickets/server/ticket-sla";
 import { requireWorkspacePermission } from "@/server/authorization/require-workspace-permission";
 import { prisma } from "@/server/database/prisma";
 
 const optionalIdSchema = z.preprocess(
   (value) => {
-    if (typeof value === "string" && value.trim() === "") {
+    if (
+      typeof value === "string" &&
+      value.trim() === ""
+    ) {
       return null;
     }
 
@@ -19,14 +23,25 @@ const createTicketSchema = z.object({
   title: z
     .string()
     .trim()
-    .min(2, "Ticket title must be at least 2 characters.")
-    .max(200, "Ticket title must be 200 characters or fewer."),
+    .min(
+      2,
+      "Ticket title must be at least 2 characters.",
+    )
+    .max(
+      200,
+      "Ticket title must be 200 characters or fewer.",
+    ),
   description: z
     .string()
     .trim()
     .min(1, "Ticket description is required.")
-    .max(10_000, "Ticket description is too long."),
-  priority: z.enum(["P0", "P1", "P2", "P3"]).default("P2"),
+    .max(
+      10_000,
+      "Ticket description is too long.",
+    ),
+  priority: z
+    .enum(["P0", "P1", "P2", "P3"])
+    .default("P2"),
   serviceId: optionalIdSchema,
   assigneeMembershipId: optionalIdSchema,
 });
@@ -67,16 +82,17 @@ export async function createTicket(input: unknown) {
     }
 
     if (parsed.assigneeMembershipId) {
-      const assignee = await tx.membership.findFirst({
-        where: {
-          id: parsed.assigneeMembershipId,
-          workspaceId: parsed.workspaceId,
-          removedAt: null,
-        },
-        select: {
-          id: true,
-        },
-      });
+      const assignee =
+        await tx.membership.findFirst({
+          where: {
+            id: parsed.assigneeMembershipId,
+            workspaceId: parsed.workspaceId,
+            removedAt: null,
+          },
+          select: {
+            id: true,
+          },
+        });
 
       if (!assignee) {
         throw new TicketManagementError(
@@ -99,6 +115,16 @@ export async function createTicket(input: unknown) {
       },
     });
 
+    const createdAt = new Date();
+
+    const {
+      responseDeadline,
+      resolutionDeadline,
+    } = calculateTicketSlaDeadlines({
+      priority: parsed.priority,
+      startedAt: createdAt,
+    });
+
     const ticket = await tx.ticket.create({
       data: {
         workspaceId: parsed.workspaceId,
@@ -111,6 +137,9 @@ export async function createTicket(input: unknown) {
         reporterMembershipId: reporter.id,
         assigneeMembershipId:
           parsed.assigneeMembershipId ?? null,
+        responseDeadline,
+        resolutionDeadline,
+        createdAt,
       },
       select: {
         id: true,
@@ -123,6 +152,9 @@ export async function createTicket(input: unknown) {
         serviceId: true,
         reporterMembershipId: true,
         assigneeMembershipId: true,
+        responseDeadline: true,
+        resolutionDeadline: true,
+        firstResponseAt: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -137,6 +169,10 @@ export async function createTicket(input: unknown) {
         metadata: {
           status: "OPEN",
           priority: parsed.priority,
+          responseDeadline:
+            responseDeadline.toISOString(),
+          resolutionDeadline:
+            resolutionDeadline.toISOString(),
         },
       },
     });

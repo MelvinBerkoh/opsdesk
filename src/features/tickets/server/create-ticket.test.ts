@@ -1,4 +1,5 @@
 import {
+  afterEach,
   beforeEach,
   describe,
   expect,
@@ -35,8 +36,14 @@ import {
   TicketManagementError,
 } from "./create-ticket";
 
+const FIXED_NOW = new Date(
+  "2026-09-25T12:00:00.000Z",
+);
+
 describe("createTicket", () => {
   beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(FIXED_NOW);
     vi.clearAllMocks();
 
     mocks.requireWorkspacePermission.mockResolvedValue({
@@ -63,49 +70,68 @@ describe("createTicket", () => {
       workspaceId: "workspace_123",
       number: 42,
       title: "Checkout is failing",
-      description: "Customers cannot complete checkout.",
+      description:
+        "Customers cannot complete checkout.",
       priority: "P1",
       status: "OPEN",
       serviceId: "service_123",
-      reporterMembershipId: "reporter_membership",
-      assigneeMembershipId: "assignee_membership",
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      reporterMembershipId:
+        "reporter_membership",
+      assigneeMembershipId:
+        "assignee_membership",
+      responseDeadline: new Date(
+        "2026-09-25T13:00:00.000Z",
+      ),
+      resolutionDeadline: new Date(
+        "2026-09-25T20:00:00.000Z",
+      ),
+      firstResponseAt: null,
+      createdAt: FIXED_NOW,
+      updatedAt: FIXED_NOW,
     });
 
     mocks.ticketActivityCreate.mockResolvedValue({
       id: "activity_123",
     });
 
-    mocks.transaction.mockImplementation(async (callback) =>
-      callback({
-        service: {
-          findFirst: mocks.serviceFindFirst,
-        },
-        membership: {
-          findFirst: mocks.membershipFindFirst,
-        },
-        workspace: {
-          update: mocks.workspaceUpdate,
-        },
-        ticket: {
-          create: mocks.ticketCreate,
-        },
-        ticketActivity: {
-          create: mocks.ticketActivityCreate,
-        },
-      }),
+    mocks.transaction.mockImplementation(
+      async (callback) =>
+        callback({
+          service: {
+            findFirst: mocks.serviceFindFirst,
+          },
+          membership: {
+            findFirst:
+              mocks.membershipFindFirst,
+          },
+          workspace: {
+            update: mocks.workspaceUpdate,
+          },
+          ticket: {
+            create: mocks.ticketCreate,
+          },
+          ticketActivity: {
+            create:
+              mocks.ticketActivityCreate,
+          },
+        }),
     );
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("requires ticket management permission", async () => {
     await createTicket({
       workspaceId: "workspace_123",
       title: "Checkout is failing",
-      description: "Customers cannot complete checkout.",
+      description:
+        "Customers cannot complete checkout.",
       priority: "P1",
       serviceId: "service_123",
-      assigneeMembershipId: "assignee_membership",
+      assigneeMembershipId:
+        "assignee_membership",
     });
 
     expect(
@@ -120,11 +146,14 @@ describe("createTicket", () => {
     await createTicket({
       workspaceId: "workspace_123",
       title: "Checkout is failing",
-      description: "Customers cannot complete checkout.",
+      description:
+        "Customers cannot complete checkout.",
       serviceId: "service_123",
     });
 
-    expect(mocks.serviceFindFirst).toHaveBeenCalledWith({
+    expect(
+      mocks.serviceFindFirst,
+    ).toHaveBeenCalledWith({
       where: {
         id: "service_123",
         workspaceId: "workspace_123",
@@ -143,43 +172,58 @@ describe("createTicket", () => {
       createTicket({
         workspaceId: "workspace_123",
         title: "Checkout is failing",
-        description: "Customers cannot complete checkout.",
+        description:
+          "Customers cannot complete checkout.",
         serviceId: "outside_service",
       }),
     ).rejects.toThrow(
       "Selected service is not available in this workspace.",
     );
 
-    expect(mocks.workspaceUpdate).not.toHaveBeenCalled();
-    expect(mocks.ticketCreate).not.toHaveBeenCalled();
+    expect(
+      mocks.workspaceUpdate,
+    ).not.toHaveBeenCalled();
+
+    expect(
+      mocks.ticketCreate,
+    ).not.toHaveBeenCalled();
   });
 
   it("rejects an inactive or cross-workspace assignee", async () => {
-    mocks.membershipFindFirst.mockResolvedValue(null);
+    mocks.membershipFindFirst.mockResolvedValue(
+      null,
+    );
 
     await expect(
       createTicket({
         workspaceId: "workspace_123",
         title: "Checkout is failing",
-        description: "Customers cannot complete checkout.",
-        assigneeMembershipId: "invalid_membership",
+        description:
+          "Customers cannot complete checkout.",
+        assigneeMembershipId:
+          "invalid_membership",
       }),
     ).rejects.toThrow(
       "Selected assignee is not an active member of this workspace.",
     );
 
-    expect(mocks.ticketCreate).not.toHaveBeenCalled();
+    expect(
+      mocks.ticketCreate,
+    ).not.toHaveBeenCalled();
   });
 
   it("atomically increments the workspace ticket sequence", async () => {
     await createTicket({
       workspaceId: "workspace_123",
       title: "Checkout is failing",
-      description: "Customers cannot complete checkout.",
+      description:
+        "Customers cannot complete checkout.",
       priority: "P1",
     });
 
-    expect(mocks.workspaceUpdate).toHaveBeenCalledWith({
+    expect(
+      mocks.workspaceUpdate,
+    ).toHaveBeenCalledWith({
       where: {
         id: "workspace_123",
       },
@@ -198,33 +242,75 @@ describe("createTicket", () => {
     await createTicket({
       workspaceId: "workspace_123",
       title: "Checkout is failing",
-      description: "Customers cannot complete checkout.",
+      description:
+        "Customers cannot complete checkout.",
       priority: "P1",
       serviceId: "service_123",
-      assigneeMembershipId: "assignee_membership",
+      assigneeMembershipId:
+        "assignee_membership",
     });
 
-    expect(mocks.ticketCreate).toHaveBeenCalledWith({
-      data: {
-        workspaceId: "workspace_123",
-        number: 42,
-        title: "Checkout is failing",
-        description: "Customers cannot complete checkout.",
-        priority: "P1",
-        status: "OPEN",
-        serviceId: "service_123",
-        reporterMembershipId: "reporter_membership",
-        assigneeMembershipId: "assignee_membership",
-      },
-      select: expect.any(Object),
-    });
+    expect(
+      mocks.ticketCreate,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          workspaceId: "workspace_123",
+          number: 42,
+          title: "Checkout is failing",
+          description:
+            "Customers cannot complete checkout.",
+          priority: "P1",
+          status: "OPEN",
+          serviceId: "service_123",
+          reporterMembershipId:
+            "reporter_membership",
+          assigneeMembershipId:
+            "assignee_membership",
+        }),
+      }),
+    );
   });
 
-  it("creates the initial ticket activity in the same transaction", async () => {
+  it("starts the P1 SLA clocks when the ticket is created", async () => {
     await createTicket({
       workspaceId: "workspace_123",
       title: "Checkout is failing",
-      description: "Customers cannot complete checkout.",
+      description:
+        "Customers cannot complete checkout.",
+      priority: "P1",
+    });
+
+    expect(
+      mocks.ticketCreate,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          createdAt: new Date(
+            "2026-09-25T12:00:00.000Z",
+          ),
+          responseDeadline: new Date(
+            "2026-09-25T13:00:00.000Z",
+          ),
+          resolutionDeadline: new Date(
+            "2026-09-25T20:00:00.000Z",
+          ),
+        }),
+        select: expect.objectContaining({
+          responseDeadline: true,
+          resolutionDeadline: true,
+          firstResponseAt: true,
+        }),
+      }),
+    );
+  });
+
+  it("creates the initial ticket activity with SLA deadlines in the same transaction", async () => {
+    await createTicket({
+      workspaceId: "workspace_123",
+      title: "Checkout is failing",
+      description:
+        "Customers cannot complete checkout.",
       priority: "P1",
     });
 
@@ -234,27 +320,41 @@ describe("createTicket", () => {
       data: {
         workspaceId: "workspace_123",
         ticketId: "ticket_123",
-        actorMembershipId: "reporter_membership",
+        actorMembershipId:
+          "reporter_membership",
         type: "CREATED",
         metadata: {
           status: "OPEN",
           priority: "P1",
+          responseDeadline:
+            "2026-09-25T13:00:00.000Z",
+          resolutionDeadline:
+            "2026-09-25T20:00:00.000Z",
         },
       },
     });
   });
 
-  it("defaults ticket priority to P2", async () => {
+  it("defaults ticket priority to P2 with the P2 SLA policy", async () => {
     await createTicket({
       workspaceId: "workspace_123",
       title: "Minor issue",
-      description: "Something needs investigation.",
+      description:
+        "Something needs investigation.",
     });
 
-    expect(mocks.ticketCreate).toHaveBeenCalledWith(
+    expect(
+      mocks.ticketCreate,
+    ).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           priority: "P2",
+          responseDeadline: new Date(
+            "2026-09-25T16:00:00.000Z",
+          ),
+          resolutionDeadline: new Date(
+            "2026-09-26T12:00:00.000Z",
+          ),
         }),
       }),
     );
@@ -267,7 +367,9 @@ describe("createTicket", () => {
       description: "Needs investigation.",
     });
 
-    expect(mocks.ticketCreate).toHaveBeenCalledWith(
+    expect(
+      mocks.ticketCreate,
+    ).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           serviceId: null,
@@ -276,8 +378,13 @@ describe("createTicket", () => {
       }),
     );
 
-    expect(mocks.serviceFindFirst).not.toHaveBeenCalled();
-    expect(mocks.membershipFindFirst).not.toHaveBeenCalled();
+    expect(
+      mocks.serviceFindFirst,
+    ).not.toHaveBeenCalled();
+
+    expect(
+      mocks.membershipFindFirst,
+    ).not.toHaveBeenCalled();
   });
 
   it("uses the expected error type for invalid relationships", async () => {
@@ -290,6 +397,8 @@ describe("createTicket", () => {
         description: "Payments are failing.",
         serviceId: "invalid_service",
       }),
-    ).rejects.toThrow(TicketManagementError);
+    ).rejects.toThrow(
+      TicketManagementError,
+    );
   });
 });

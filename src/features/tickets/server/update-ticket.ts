@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { calculateTicketSlaDeadlines } from "@/features/tickets/server/ticket-sla";
 import { requireWorkspacePermission } from "@/server/authorization/require-workspace-permission";
 import { prisma } from "@/server/database/prisma";
 
@@ -58,13 +59,19 @@ export async function updateTicket(input: unknown) {
         priority: true,
         serviceId: true,
         assigneeMembershipId: true,
+        responseDeadline: true,
+        resolutionDeadline: true,
+        firstResponseAt: true,
         resolvedAt: true,
         closedAt: true,
+        createdAt: true,
       },
     });
 
     if (!ticket) {
-      throw new UpdateTicketError("Ticket not found.");
+      throw new UpdateTicketError(
+        "Ticket not found.",
+      );
     }
 
     if (parsed.serviceId) {
@@ -87,16 +94,17 @@ export async function updateTicket(input: unknown) {
     }
 
     if (parsed.assigneeMembershipId) {
-      const assignee = await tx.membership.findFirst({
-        where: {
-          id: parsed.assigneeMembershipId,
-          workspaceId: parsed.workspaceId,
-          removedAt: null,
-        },
-        select: {
-          id: true,
-        },
-      });
+      const assignee =
+        await tx.membership.findFirst({
+          where: {
+            id: parsed.assigneeMembershipId,
+            workspaceId: parsed.workspaceId,
+            removedAt: null,
+          },
+          select: {
+            id: true,
+          },
+        });
 
       if (!assignee) {
         throw new UpdateTicketError(
@@ -117,6 +125,13 @@ export async function updateTicket(input: unknown) {
       priority?: "P0" | "P1" | "P2" | "P3";
       serviceId?: string | null;
       assigneeMembershipId?: string | null;
+      responseDeadline?: Date;
+      resolutionDeadline?: Date;
+      responseWarningAt?: Date | null;
+      resolutionWarningAt?: Date | null;
+      responseBreachedAt?: Date | null;
+      resolutionBreachedAt?: Date | null;
+      firstResponseAt?: Date;
       resolvedAt?: Date | null;
       closedAt?: Date | null;
     } = {};
@@ -139,10 +154,21 @@ export async function updateTicket(input: unknown) {
     ) {
       data.status = parsed.status;
 
+      const isFirstOperationalResponse =
+        ticket.firstResponseAt === null &&
+        ticket.status === "OPEN" &&
+        parsed.status !== "OPEN";
+
+      if (isFirstOperationalResponse) {
+        data.firstResponseAt = now;
+      }
+
       if (parsed.status === "RESOLVED") {
         data.resolvedAt = now;
         data.closedAt = null;
       } else if (parsed.status === "CLOSED") {
+        data.resolvedAt =
+          ticket.resolvedAt ?? now;
         data.closedAt = now;
       } else if (
         ticket.status === "RESOLVED" ||
@@ -183,6 +209,31 @@ export async function updateTicket(input: unknown) {
       parsed.priority !== ticket.priority
     ) {
       data.priority = parsed.priority;
+
+      const {
+        responseDeadline,
+        resolutionDeadline,
+      } = calculateTicketSlaDeadlines({
+        priority: parsed.priority,
+        startedAt: ticket.createdAt,
+      });
+
+      if (!ticket.firstResponseAt) {
+        data.responseDeadline =
+          responseDeadline;
+        data.responseWarningAt = null;
+        data.responseBreachedAt = null;
+      }
+
+      if (
+        !ticket.resolvedAt &&
+        !ticket.closedAt
+      ) {
+        data.resolutionDeadline =
+          resolutionDeadline;
+        data.resolutionWarningAt = null;
+        data.resolutionBreachedAt = null;
+      }
 
       activities.push({
         type: "PRIORITY_CHANGED",
@@ -229,13 +280,14 @@ export async function updateTicket(input: unknown) {
       return ticket;
     }
 
-    const updateResult = await tx.ticket.updateMany({
-      where: {
-        id: ticket.id,
-        workspaceId: parsed.workspaceId,
-      },
-      data,
-    });
+    const updateResult =
+      await tx.ticket.updateMany({
+        where: {
+          id: ticket.id,
+          workspaceId: parsed.workspaceId,
+        },
+        data,
+      });
 
     if (updateResult.count !== 1) {
       throw new UpdateTicketError(

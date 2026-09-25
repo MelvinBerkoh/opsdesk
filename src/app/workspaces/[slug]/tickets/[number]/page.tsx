@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { EscalateTicketButton } from "@/features/incidents/components/escalate-ticket-button";
 import { TicketDetailsForm } from "@/features/tickets/components/ticket-details-form";
+import { TicketSlaPanel } from "@/features/tickets/components/ticket-sla-panel";
 import { getTicketDetail } from "@/features/tickets/server/get-ticket-detail";
 import { WorkspaceShell } from "@/features/workspaces/components/workspace-shell";
 import { hasWorkspacePermission } from "@/server/authorization/workspace-permissions";
@@ -126,6 +127,27 @@ function getActivityDetail(
       (to ? "Unknown member" : "Unassigned");
 
     return `${oldAssignee} → ${newAssignee}`;
+  }
+
+  if (
+    type === "SLA_WARNING" ||
+    type === "SLA_BREACHED"
+  ) {
+    const record =
+      metadata &&
+      typeof metadata === "object" &&
+      !Array.isArray(metadata)
+        ? (metadata as Record<string, unknown>)
+        : null;
+
+    const target =
+      record?.target === "RESOLUTION"
+        ? "Resolution"
+        : "First response";
+
+    return type === "SLA_WARNING"
+      ? `${target} target is approaching its deadline.`
+      : `${target} target missed its deadline.`;
   }
 
   return null;
@@ -365,6 +387,26 @@ export default async function TicketDetailPage({
           </div>
 
           <aside className="space-y-5">
+            <TicketSlaPanel
+              createdAt={ticket.createdAt.toISOString()}
+              responseDeadline={
+                ticket.responseDeadline?.toISOString() ?? null
+              }
+              resolutionDeadline={
+                ticket.resolutionDeadline?.toISOString() ?? null
+              }
+              firstResponseAt={
+                ticket.firstResponseAt?.toISOString() ?? null
+              }
+              resolvedAt={
+                ticket.resolvedAt?.toISOString() ?? null
+              }
+              closedAt={
+                ticket.closedAt?.toISOString() ?? null
+              }
+              evaluatedAt={new Date().toISOString()}
+            />
+
             {canManageTickets && (
               <TicketDetailsForm
                 workspaceId={ticket.workspace.id}
