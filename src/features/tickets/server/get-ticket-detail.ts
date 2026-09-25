@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 
+import { evaluateTicketSla } from "@/features/tickets/server/evaluate-ticket-sla";
 import { prisma } from "@/server/database/prisma";
 
 export async function getTicketDetail(
@@ -8,7 +9,7 @@ export async function getTicketDetail(
 ) {
   const { userId } = await auth.protect();
 
-  const ticket = await prisma.ticket.findFirst({
+  const target = await prisma.ticket.findFirst({
     where: {
       number: ticketNumber,
       workspace: {
@@ -23,6 +24,26 @@ export async function getTicketDetail(
     },
     select: {
       id: true,
+      workspaceId: true,
+    },
+  });
+
+  if (!target) {
+    return null;
+  }
+
+  await evaluateTicketSla({
+    workspaceId: target.workspaceId,
+    ticketId: target.id,
+  });
+
+  const ticket = await prisma.ticket.findFirst({
+    where: {
+      id: target.id,
+      workspaceId: target.workspaceId,
+    },
+    select: {
+      id: true,
       number: true,
       title: true,
       description: true,
@@ -30,8 +51,15 @@ export async function getTicketDetail(
       status: true,
       createdAt: true,
       updatedAt: true,
+      responseDeadline: true,
+      resolutionDeadline: true,
+      firstResponseAt: true,
       resolvedAt: true,
       closedAt: true,
+      responseWarningAt: true,
+      resolutionWarningAt: true,
+      responseBreachedAt: true,
+      resolutionBreachedAt: true,
 
       workspace: {
         select: {
@@ -116,7 +144,8 @@ export async function getTicketDetail(
 
   const currentMembership =
     ticket.workspace.memberships.find(
-      (membership) => membership.userId === userId,
+      (membership) =>
+        membership.userId === userId,
     );
 
   if (!currentMembership) {
