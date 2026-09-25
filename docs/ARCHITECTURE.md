@@ -1,1605 +1,320 @@
 # OpsDesk Architecture
 
-## Document Status
+This document describes the architecture that is actually used by the current deployed version of OpsDesk.
 
-- **Version:** 0.1
-- **Status:** Initial Architecture
-- **Product:** OpsDesk
+The first architecture draft explored Redis, background workers, a real-time gateway, object storage, API keys, and webhooks. Those are still useful future directions, but they are not part of the current release.
 
----
+## 1. System overview
 
-## 1. Architecture Overview
-
-OpsDesk is a multi-tenant support and incident-management platform built as a modular full-stack application with separate processes for web requests, background work, and real-time communication.
-
-The initial production architecture consists of:
-
-1. A Next.js web application
-2. A PostgreSQL database
-3. A Redis instance
-4. A background worker
-5. A real-time gateway
-6. Object storage
-7. External authentication
-8. Observability tooling
-
-The goal is to keep the product understandable and deployable while introducing system boundaries that are meaningful for a production application.
-
----
-
-## 2. High-Level Architecture
+OpsDesk is a modular full-stack Next.js application.
 
 ```text
-                         ┌─────────────────────┐
-                         │       Browser       │
-                         └──────────┬──────────┘
-                                    │
-                                    │ HTTPS
-                                    ▼
-                         ┌─────────────────────┐
-                         │   Next.js Web App   │
-                         │                     │
-                         │ Pages               │
-                         │ Server Components   │
-                         │ Server Actions      │
-                         │ REST API            │
-                         └───────┬─────┬───────┘
-                                 │     │
-                    ┌────────────┘     └─────────────┐
-                    │                                │
-                    ▼                                ▼
-          ┌──────────────────┐             ┌──────────────────┐
-          │   PostgreSQL     │             │      Redis       │
-          │                  │             │                  │
-          │ Source of truth  │             │ Jobs             │
-          │ Tenant data      │             │ Pub/Sub          │
-          │ Audit history    │             │ Rate limiting    │
-          └──────────────────┘             └────────┬─────────┘
-                                                   │
-                              ┌────────────────────┴───────────────────┐
-                              │                                        │
-                              ▼                                        ▼
-                    ┌──────────────────┐                    ┌──────────────────┐
-                    │ Background       │                    │ Realtime Gateway │
-                    │ Worker           │                    │                  │
-                    │                  │                    │ Live updates     │
-                    │ SLA jobs         │                    │ Subscriptions    │
-                    │ Webhooks         │                    │ Event fan-out    │
-                    │ Retries          │                    │                  │
-                    └────────┬─────────┘                    └──────────────────┘
-                             │
-                             │
-              ┌──────────────┴──────────────┐
-              │                             │
-              ▼                             ▼
-     ┌──────────────────┐          ┌──────────────────┐
-     │ External Webhook │          │  Object Storage  │
-     │ Endpoints        │          │                  │
-     │                  │          │ Attachments      │
-     └──────────────────┘          └──────────────────┘
+Browser
+   |
+   | HTTPS
+   v
+Next.js app on Vercel
+   |
+   +-- Clerk
+   |    └── authentication and sessions
+   |
+   +-- Server Components / Server Actions
+   |    └── authorization and business rules
+   |
+   +-- Prisma
+        |
+        v
+PostgreSQL on Neon
 ```
 
----
+PostgreSQL is the source of truth for application data.
 
-## 3. Architectural Style
+## 2. Why a modular monolith?
 
-OpsDesk will use a **modular monolith with supporting services**.
+OpsDesk has several business areas, but they do not need independent deployments.
 
-The primary business application remains inside one codebase.
+Keeping them in one codebase makes the system easier to understand, test, deploy, and change.
 
-Business logic is separated by feature rather than by microservice.
-
-Examples:
+The code is split by feature:
 
 ```text
-src/features/workspaces
-src/features/memberships
-src/features/services
-src/features/tickets
-src/features/incidents
-src/features/sla
-src/features/api-keys
-src/features/webhooks
-src/features/audit
+src/features/
+├── incidents/
+├── invitations/
+├── members/
+├── services/
+├── tickets/
+└── workspaces/
 ```
 
-The application will not create independent microservices for every feature.
-
-Separate processes are introduced only when their runtime requirements justify them.
-
-The initial separate processes are:
-
-- web application
-- background worker
-- real-time gateway
-
----
-
-## 4. Why Not Microservices?
-
-OpsDesk has complex business behavior, but the initial project does not require independently deployed services for each domain.
-
-A microservice architecture would introduce additional complexity involving:
-
-- distributed transactions
-- service discovery
-- multiple deployments
-- duplicated authentication
-- inter-service networking
-- versioned internal APIs
-- additional observability requirements
-
-That complexity would not initially improve the product.
-
-Instead, OpsDesk keeps domain logic in one repository while separating runtime processes where necessary.
-
----
-
-## 5. Repository Structure
-
-Initial target structure:
+Shared infrastructure lives under `src/server`.
 
 ```text
-opsdesk/
-├── docs/
-│   ├── PRODUCT_REQUIREMENTS.md
-│   ├── ARCHITECTURE.md
-│   └── DATABASE.md
-│
-├── prisma/
-│   ├── migrations/
-│   └── schema.prisma
-│
-├── public/
-│
-├── src/
-│   ├── app/
-│   │   ├── api/
-│   │   │   └── v1/
-│   │   ├── auth/
-│   │   ├── workspaces/
-│   │   └── ...
-│   │
-│   ├── features/
-│   │   ├── workspaces/
-│   │   ├── memberships/
-│   │   ├── invitations/
-│   │   ├── services/
-│   │   ├── tickets/
-│   │   ├── incidents/
-│   │   ├── sla/
-│   │   ├── attachments/
-│   │   ├── api-keys/
-│   │   ├── webhooks/
-│   │   └── audit/
-│   │
-│   ├── lib/
-│   ├── server/
-│   │   ├── auth/
-│   │   ├── authorization/
-│   │   ├── database/
-│   │   ├── queue/
-│   │   ├── realtime/
-│   │   └── storage/
-│   │
-│   └── generated/
-│
-├── worker/
-│   ├── jobs/
-│   ├── processors/
-│   └── index.ts
-│
-├── realtime/
-│   └── index.ts
-│
-├── tests/
-│
-├── docker-compose.yml
-├── package.json
-├── prisma.config.ts
-└── README.md
+src/server/
+├── authorization/
+└── database/
 ```
 
-This structure may evolve as implementation reveals better boundaries.
+This keeps business boundaries clear without adding distributed-system complexity that the current product does not need.
 
----
+## 3. Web application
 
-## 6. Web Application
+The web layer uses:
 
-The web application will use:
-
-- Next.js
+- Next.js App Router
 - React
 - TypeScript
 - Tailwind CSS
 
-The Next.js App Router will handle:
+Server Components are used for data-heavy pages.
 
-- page routing
-- server rendering
-- React Server Components
-- Server Actions
-- REST API route handlers
-- authentication integration
+Client Components are used where browser interaction is needed, such as forms, live SLA countdown display, navigation state, and authentication UI.
 
-Server Components should be preferred for data-heavy pages where client-side interactivity is not required.
+## 4. Authentication
 
-Client Components should be introduced only when browser state or interaction requires them.
+Clerk answers one question:
 
-Examples:
+> Who is this user?
 
-- dialogs
-- optimistic comments
-- workspace switcher
-- live incident timeline
-- file upload progress
+It handles sign-up, sign-in, sign-out, sessions, and protected routes.
 
----
+Clerk is not the source of truth for workspace permissions.
 
-## 7. Authentication
+## 5. Authorization
 
-Authentication will initially use Clerk.
+OpsDesk answers a different question:
 
-Clerk is responsible for:
+> What can this user do inside this workspace?
 
-- user registration
-- sign-in
-- sign-out
-- session management
-- authenticated user identity
-
-Clerk answers:
+Protected server operations validate:
 
 ```text
-Who is this user?
+authenticated user
+        |
+        v
+active workspace membership
+        |
+        v
+required permission
+        |
+        v
+resource belongs to workspace
+        |
+        v
+operation runs
 ```
 
-Clerk will not be treated as the source of truth for OpsDesk workspace authorization.
+UI checks improve the experience, but the server is the security boundary.
 
-Workspace membership and permissions will remain in the OpsDesk PostgreSQL database.
+## 6. Multi-tenancy
 
----
+`Workspace` is the tenant boundary.
 
-## 8. Authorization
+Tenant-owned resources are scoped to a workspace. This includes:
 
-Authorization is separate from authentication.
+- memberships
+- invitations
+- services
+- tickets
+- ticket activity
+- incidents
+- incident activity
 
-OpsDesk authorization determines:
+A resource ID alone is never treated as proof that the current user may access the resource.
 
-```text
-What can this authenticated user do
-inside this workspace?
-```
-
-Every protected server operation must validate:
-
-1. authentication
-2. workspace membership
-3. role or permission
-4. resource workspace ownership
-
-Example:
-
-```text
-Request
-   │
-   ▼
-Authenticated user?
-   │
-   ▼
-Workspace membership?
-   │
-   ▼
-Required permission?
-   │
-   ▼
-Resource belongs to workspace?
-   │
-   ▼
-Execute operation
-```
-
-UI permission checks are for usability only.
-
-They are never the security boundary.
-
----
-
-## 9. Multi-Tenant Model
-
-Workspace is the primary tenant boundary.
-
-Nearly every business record will contain a `workspaceId`.
-
-Examples:
-
-```text
-Workspace
-├── Memberships
-├── Invitations
-├── Services
-├── Tickets
-├── Incidents
-├── Attachments
-├── SLA Policies
-├── API Keys
-├── Webhooks
-└── Audit Events
-```
-
-Queries should normally include the active workspace identifier.
-
-Example:
+Preferred query shape:
 
 ```ts
 where: {
-  id: incidentId,
+  id: resourceId,
   workspaceId,
 }
 ```
 
-rather than:
+## 7. Role model
 
-```ts
-where: {
-  id: incidentId,
-}
-```
+The current roles are:
 
-The second form is unsafe when the resource ID came from an untrusted request.
+| Role   | Main purpose                        |
+| ------ | ----------------------------------- |
+| Owner  | Full workspace control              |
+| Admin  | Team and operational management     |
+| Agent  | Day-to-day ticket and incident work |
+| Viewer | Read-only access                    |
 
----
+Permissions are defined centrally and checked by server-side authorization helpers.
 
-## 10. Database
+## 8. Ticket workflow
 
-OpsDesk will use PostgreSQL.
-
-Production database hosting will use Neon unless deployment requirements later justify another provider.
-
-Prisma will provide:
-
-- schema definition
-- type-safe queries
-- migrations
-- generated database client
-
-PostgreSQL remains the system of record.
-
-Redis and the real-time layer must not become authoritative sources of business state.
-
----
-
-## 11. Database Design Principles
-
-Database design will prioritize:
-
-- explicit workspace ownership
-- foreign-key integrity
-- indexed tenant queries
-- immutable audit records
-- clear lifecycle timestamps
-- safe deletion behavior
-- historical activity preservation
-
-Common indexes will include workspace ownership.
-
-Example:
+The ticket flow is:
 
 ```text
-(workspace_id, status)
-(workspace_id, priority)
-(workspace_id, created_at)
-(workspace_id, assignee_id)
+Create ticket
+    |
+    v
+Assign service / assignee
+    |
+    v
+Move through ticket statuses
+    |
+    +--> Resolve / close
+    |
+    +--> Escalate
+             |
+             v
+          Incident
 ```
 
-Unique human-readable issue numbers should generally be scoped to a workspace.
+Important ticket changes create activity records.
 
-Example:
+## 9. Incident workflow
+
+An incident can be created from a ticket escalation.
+
+The current incident lifecycle is:
 
 ```text
-Workspace A
-INC-1001
-
-Workspace B
-INC-1001
+OPEN
+  |
+  v
+INVESTIGATING
+  |
+  v
+MONITORING
+  |
+  v
+RESOLVED
 ```
 
-is acceptable.
+Incidents keep their own priority, service, owner, timestamps, and activity history.
 
----
+## 10. SLA design
 
-## 12. Redis
+Each ticket gets two stored deadlines:
 
-Redis will initially serve three purposes:
+- first-response deadline
+- resolution deadline
 
-### Job Queue
+Current targets:
 
-Background work will be queued rather than performed inside user-facing requests.
+| Priority | Response | Resolution |
+| -------- | -------: | ---------: |
+| P0       |   15 min |    4 hours |
+| P1       |   1 hour |    8 hours |
+| P2       |  4 hours |   24 hours |
+| P3       |  8 hours |   72 hours |
 
-### Real-Time Event Distribution
-
-The web application and worker may publish domain events that the real-time gateway forwards to connected clients.
-
-### Rate Limiting
-
-Redis may be used for rate limiting public API and integration endpoints.
-
-Redis is not a source of truth for permanent business data.
-
----
-
-## 13. Background Worker
-
-OpsDesk requires work that must continue even when no user has the site open.
-
-A separate long-running Node.js worker will process background jobs.
-
-The initial queue implementation will use Redis with BullMQ or an equivalent Redis-backed queue library.
-
-Initial job categories:
+The ticket stores:
 
 ```text
-sla.warning
-sla.breach
-webhook.delivery
-invitation.email
-notification.delivery
-```
-
-The worker should support:
-
-- retries
-- exponential backoff where appropriate
-- failure visibility
-- idempotent processors
-- dead/final failure states
-
----
-
-## 14. Job Design
-
-Jobs should contain identifiers rather than large copies of mutable database records.
-
-Prefer:
-
-```json
-{
-  "incidentId": "inc_123",
-  "workspaceId": "ws_123"
-}
-```
-
-instead of storing the entire incident inside the queue payload.
-
-The worker should retrieve the current record when processing.
-
-This reduces stale queued data.
-
----
-
-## 15. Idempotency
-
-Background jobs may execute more than once.
-
-Processors must be designed with that assumption.
-
-Example:
-
-A webhook delivery should not accidentally create multiple independent delivery records simply because a worker restarted after sending a request.
-
-Where duplicate side effects would be harmful, OpsDesk should use:
-
-- unique operation identifiers
-- database constraints
-- atomic updates
-- delivery records
-- state checks
-
----
-
-## 16. SLA Engine
-
-The SLA system is one of the primary reasons for having a worker.
-
-When an issue is created:
-
-```text
-Issue created
-      │
-      ▼
-Determine SLA policy
-      │
-      ▼
-Calculate deadlines
-      │
-      ├── Response deadline
-      └── Resolution deadline
-      │
-      ▼
-Persist deadlines
-      │
-      ▼
-Schedule background jobs
-```
-
-The worker later verifies current database state before producing a warning or breach.
-
-Example:
-
-```text
-SLA breach job runs
-       │
-       ▼
-Load incident
-       │
-       ├── Already resolved? → stop
-       │
-       ├── Deadline changed? → stop/reschedule
-       │
-       └── Still overdue?
-                │
-                ▼
-          Record breach
-```
-
-Scheduled jobs must not blindly assume that the issue still matches the state from when the job was created.
-
----
-
-## 17. Domain Events
-
-Important business changes should emit domain events after successful persistence.
-
-Examples:
-
-```text
-incident.created
-incident.updated
-incident.assigned
-incident.resolved
-comment.created
-ticket.created
-sla.warning
-sla.breached
-```
-
-Domain events may be used by:
-
-- real-time updates
-- webhook delivery
-- notifications
-- audit workflows
-- analytics
-
-The initial implementation does not require a full event-sourcing architecture.
-
-PostgreSQL continues to store the authoritative current state.
-
----
-
-## 18. Real-Time Architecture
-
-Users viewing the same incident should receive live updates.
-
-The initial architecture will use:
-
-```text
-Business mutation
-      │
-      ▼
-PostgreSQL transaction succeeds
-      │
-      ▼
-Publish event to Redis
-      │
-      ▼
-Realtime Gateway
-      │
-      ▼
-Connected workspace clients
-```
-
-The real-time gateway will be a long-running Node.js process.
-
-It may use WebSockets or Server-Sent Events depending on the implementation tradeoffs discovered during the real-time phase.
-
-The gateway will not write business state.
-
-It distributes notifications that tell clients something changed.
-
-Clients should be able to recover by refetching authoritative state from the web application.
-
----
-
-## 19. Real-Time Security
-
-Real-time connections must authenticate users.
-
-The gateway must verify:
-
-- valid authenticated identity
-- workspace membership
-- authorization to subscribe to the requested resource
-
-A client must never be able to subscribe to another workspace merely by guessing an incident ID.
-
-Events should be scoped by workspace and resource.
-
-Example conceptual channels:
-
-```text
-workspace:ws_123
-incident:inc_456
-```
-
----
-
-## 20. Comments and Optimistic UI
-
-Comments are a strong candidate for optimistic UI.
-
-Potential flow:
-
-```text
-User submits comment
-       │
-       ▼
-Temporary comment appears
-       │
-       ▼
-Server persists comment
-       │
-       ├── success → replace temporary state
-       │
-       └── failure → show retry/error state
-```
-
-Real-time events must not cause the submitting user to display duplicate comments.
-
-Persisted IDs should be used for reconciliation.
-
----
-
-## 21. Object Storage
-
-Attachments should not be stored as database blobs.
-
-OpsDesk will use S3-compatible object storage such as:
-
-- Cloudflare R2
-- Amazon S3
-- another compatible provider
-
-PostgreSQL will store metadata only.
-
-Example:
-
-```text
-Attachment
-├── id
-├── workspaceId
-├── issueId
-├── uploadedById
-├── fileName
-├── mimeType
-├── size
-├── storageKey
-└── createdAt
-```
-
----
-
-## 22. Upload Flow
-
-Preferred attachment flow:
-
-```text
-Browser
-   │
-   │ request upload authorization
-   ▼
-OpsDesk Web App
-   │
-   │ create signed upload URL
-   ▼
-Browser
-   │
-   │ direct upload
-   ▼
-Object Storage
-   │
-   ▼
-OpsDesk records attachment metadata
-```
-
-This prevents large file bodies from unnecessarily passing through the Next.js server.
-
----
-
-## 23. Attachment Authorization
-
-Object storage keys must never be treated as authorization.
-
-Before generating a download URL, OpsDesk must verify that:
-
-1. user is authenticated
-2. user belongs to the workspace
-3. attachment belongs to the workspace
-4. user can view the parent issue
-
-Private attachments should use short-lived signed download URLs.
-
----
-
-## 24. REST API
-
-OpsDesk will expose a versioned API under:
-
-```text
-/api/v1
-```
-
-Example:
-
-```text
-GET    /api/v1/incidents
-POST   /api/v1/incidents
-GET    /api/v1/incidents/:id
-PATCH  /api/v1/incidents/:id
-```
-
-API routes should reuse the same domain operations as the web application where practical.
-
-Business rules should not be duplicated between:
-
-- Server Actions
-- API routes
-
----
-
-## 25. API Keys
-
-Programmatic API access will use workspace API keys.
-
-Conceptual format:
-
-```text
-ops_live_<secret>
-```
-
-The application should store:
-
-```text
-prefix
-hash(secret)
-```
-
-and not:
-
-```text
-raw secret
-```
-
-Creation flow:
-
-```text
-Generate secret
-      │
-      ├── return raw key once
-      │
-      └── store hash
-```
-
-Incoming API requests hash or otherwise verify the presented secret against stored credentials.
-
-Revoked keys must fail immediately.
-
----
-
-## 26. API Authentication Flow
-
-```text
-API Request
-     │
-     ▼
-Read API key
-     │
-     ▼
-Validate key format
-     │
-     ▼
-Find candidate key by prefix
-     │
-     ▼
-Verify secret hash
-     │
-     ▼
-Check revoked state
-     │
-     ▼
-Resolve workspace
-     │
-     ▼
-Apply authorization
-     │
-     ▼
-Handle request
-```
-
----
-
-## 27. Rate Limiting
-
-Public API endpoints should support rate limiting.
-
-Rate limits may be keyed by:
-
-- API key
-- workspace
-- endpoint category
-
-Rate-limit enforcement must fail safely without exposing secret key material in logs.
-
----
-
-## 28. Webhooks
-
-Workspace administrators may configure outbound webhook endpoints.
-
-Flow:
-
-```text
-Domain event
-     │
-     ▼
-Create webhook delivery record
-     │
-     ▼
-Queue delivery job
-     │
-     ▼
-Worker sends HTTPS request
-     │
-     ├── success → mark delivered
-     │
-     └── failure → retry
-```
-
-Webhook requests should include:
-
-- delivery ID
-- event ID
-- event type
-- timestamp
-- payload
-- cryptographic signature
-
----
-
-## 29. Webhook Signing
-
-Each webhook endpoint will have a secret.
-
-The worker signs the request payload using an HMAC-based signature.
-
-Conceptual headers:
-
-```text
-X-OpsDesk-Event
-X-OpsDesk-Delivery
-X-OpsDesk-Timestamp
-X-OpsDesk-Signature
-```
-
-Receivers can verify that the request originated from OpsDesk and was not modified.
-
-Webhook secrets must not be logged.
-
----
-
-## 30. Webhook Retries
-
-Webhook delivery is inherently unreliable.
-
-A destination may:
-
-- time out
-- return a server error
-- become temporarily unavailable
-
-Failed deliveries should use retry behavior with bounded exponential backoff.
-
-Example:
-
-```text
-Attempt 1 → immediate
-Attempt 2 → delayed
-Attempt 3 → longer delay
-Attempt 4 → final failure
-```
-
-Exact retry timing will be defined during implementation.
-
----
-
-## 31. Audit Logging
-
-Audit logging is separate from issue activity.
-
-Issue activity answers:
-
-```text
-What happened to this ticket or incident?
-```
-
-Audit logs answer:
-
-```text
-Who performed a sensitive workspace action?
-```
-
-Audit events should be append-only through normal product flows.
-
-Examples:
-
-```text
-member.invited
-member.role_changed
-member.removed
-api_key.created
-api_key.revoked
-webhook.created
-webhook.deleted
-workspace.updated
-```
-
----
-
-## 32. Transactions
-
-Operations that modify multiple related records should use database transactions when atomicity is required.
-
-Example incident status change:
-
-```text
-Update incident
-       +
-Create activity event
-       +
-Potentially update resolution timestamp
-```
-
-should succeed or fail as one logical operation when possible.
-
-External side effects such as webhook delivery should not occur inside a database transaction.
-
-They should be queued after persistence.
-
----
-
-## 33. Transactional Event Reliability
-
-A potential failure exists when:
-
-```text
-Database commit succeeds
-        │
-        ▼
-Process crashes
-        │
-        ▼
-Queue event never published
-```
-
-For workflows where losing the event would be unacceptable, OpsDesk may introduce a transactional outbox pattern.
-
-Conceptual model:
-
-```text
-Database transaction
-      │
-      ├── update business record
-      └── create outbox event
-             │
-             ▼
-       background publisher
-             │
-             ▼
-           Redis
-```
-
-The initial implementation should introduce the outbox only where the reliability requirement justifies the additional complexity.
-
----
-
-## 34. Search
-
-Initial search should use PostgreSQL capabilities.
-
-Search scope:
-
-- incidents
-- tickets
-- comments
-- services
-
-All queries must remain tenant-scoped.
-
-A dedicated search engine should not be introduced until PostgreSQL search becomes an actual limitation.
-
----
-
-## 35. Validation
-
-Zod will be used for application-level validation.
-
-Validation belongs at system boundaries.
-
-Examples:
-
-- Server Action input
-- API request bodies
-- query parameters
-- invitation tokens
-- API configuration
-- webhook endpoints
-- upload metadata
-
-Database constraints remain necessary even when Zod validation exists.
-
-Application validation improves errors.
-
-Database constraints protect integrity.
-
----
-
-## 36. Error Handling
-
-Errors should be separated into categories where useful.
-
-Examples:
-
-```text
-AuthenticationError
-AuthorizationError
-ValidationError
-NotFoundError
-ConflictError
-RateLimitError
-IntegrationError
-```
-
-Users should receive useful errors without internal implementation details.
-
-Production logs may contain more diagnostic context.
-
----
-
-## 37. Logging
-
-Server logs should be structured.
-
-Important context may include:
-
-```text
-requestId
-workspaceId
-userId
-resourceId
-jobId
-eventType
-```
-
-Secrets must never be logged.
-
-Do not log:
-
-```text
-raw API keys
-database URLs
-Clerk secrets
-webhook secrets
-signed upload credentials
-```
-
----
-
-## 38. Observability
-
-The final production system should provide visibility into:
-
-- application errors
-- worker errors
-- failed jobs
-- webhook failures
-- queue depth
-- request failures
-- unexpected authorization failures
-
-An error-monitoring platform such as Sentry may be introduced during the observability phase.
-
-Observability should help answer:
-
-```text
-What failed?
-Where did it fail?
-Which workspace was affected?
-Can it be retried?
-```
-
-without exposing sensitive data.
-
----
-
-## 39. Testing Architecture
-
-Testing will use multiple levels.
-
-### Unit Tests
-
-For isolated logic such as:
-
-- permissions
-- SLA calculations
-- API key generation
-- webhook signing
-- validation
-
-### Server Workflow Tests
-
-For:
-
-- workspace creation
-- membership changes
-- ticket creation
-- incident transitions
-- cross-workspace protection
-- API authentication
-
-### Worker Tests
-
-For:
-
-- SLA jobs
-- retries
-- webhook delivery state
-- idempotency
-
-### Component Tests
-
-For important interactive UI behavior.
-
-### End-to-End Tests
-
-Playwright will eventually cover critical flows such as:
-
-```text
-sign in
-create workspace
-invite member
-create incident
-assign incident
-comment
-resolve incident
-```
-
----
-
-## 40. Local Development
-
-The project should support local development without requiring every production cloud dependency.
-
-A future Docker Compose configuration may provide:
-
-```text
-PostgreSQL
-Redis
-```
-
-The web application, worker, and realtime process can run locally as normal Node processes.
-
-Conceptual commands may eventually resemble:
-
-```text
-npm run dev
-npm run worker:dev
-npm run realtime:dev
-```
-
-The exact scripts will be defined when those processes are introduced.
-
----
-
-## 41. Production Deployment
-
-Initial target architecture:
-
-```text
-Next.js Web App
-      │
-      └── Vercel
-
-PostgreSQL
-      │
-      └── Neon
-
-Redis
-      │
-      └── Managed Redis provider
-
-Worker
-      │
-      └── Long-running container host
-
-Realtime Gateway
-      │
-      └── Long-running container host
-
-Attachments
-      │
-      └── S3-compatible object storage
-```
-
-The worker and realtime gateway require a runtime suitable for long-lived Node processes.
-
-They should not be forced into a short-lived request model simply to keep all deployments on one platform.
-
----
-
-## 42. Environment Separation
-
-Production, preview, and development environments should not accidentally share sensitive resources.
-
-Where practical:
-
-```text
-development
-preview
-production
-```
-
-should use isolated:
-
-- databases
-- Redis namespaces or instances
-- storage prefixes/buckets
-- API credentials
-- webhook secrets
-
-Production test data should not be mixed with local development data.
-
----
-
-## 43. Security Boundaries
-
-The primary security boundaries are:
-
-### Browser → Web Server
-
-Never trust:
-
-- user IDs
-- workspace IDs
-- roles
-- permissions
-- prices
-- status transitions
-- ownership claims
-
-without server validation.
-
-### Web Server → Database
-
-Queries must enforce tenant ownership.
-
-### API Client → REST API
-
-API key and workspace permissions must be validated.
-
-### Browser → Object Storage
-
-Upload authorization must be short-lived and scoped.
-
-### Redis → Worker
-
-Job payloads are instructions, not authorization proof.
-
-The worker must still load and validate relevant current state.
-
-### Realtime Client → Gateway
-
-Subscriptions must be authenticated and tenant-scoped.
-
-### Worker → Webhook Destination
-
-Outbound requests require safe URL handling, bounded timeouts, and controlled retries.
-
----
-
-## 44. External URL Security
-
-Webhook destinations are user-controlled URLs.
-
-Because the worker will make requests to those URLs, webhook delivery introduces SSRF risk.
-
-The webhook system must eventually include protections such as:
-
-- HTTPS requirements where appropriate
-- URL validation
-- restricted ports
-- private-network blocking
-- DNS/IP validation
-- redirect controls
-- request timeouts
-- response-size limits
-
-The lessons from the Application Tracker job-posting importer should be applied here, with stricter controls because webhook requests may occur repeatedly.
-
----
-
-## 45. Data Ownership Rule
-
-A central OpsDesk engineering rule is:
-
-> A resource identifier does not grant access to the resource.
-
-For example:
-
-```text
-/incidents/inc_123
-```
-
-does not mean the current user may access `inc_123`.
-
-The server must prove that:
-
-```text
-user
-  ↓
-membership
-  ↓
-workspace
-  ↓
-incident
-```
-
-forms a valid authorized chain.
-
----
-
-## 46. Deletion Strategy
-
-Deletion behavior will vary by resource.
-
-Potential examples:
-
-### Workspace
-
-High-risk destructive operation.
-
-Should require Owner permission and explicit confirmation.
-
-### Incident
-
-May eventually prefer archive/soft-delete behavior to preserve historical context.
-
-### Audit Event
-
-Should not be normally deletable.
-
-### API Key
-
-Should be revoked rather than reused.
-
-### Membership
-
-May be removed while preserving historical actor references where possible.
-
-Exact database behavior will be specified in `DATABASE.md`.
-
----
-
-## 47. Time Handling
-
-All database timestamps should be stored in UTC.
-
-Examples:
-
-```text
-createdAt
-updatedAt
-resolvedAt
 responseDeadline
 resolutionDeadline
+firstResponseAt
+resolvedAt
+responseWarningAt
+resolutionWarningAt
+responseBreachedAt
+resolutionBreachedAt
 ```
 
-User-facing dates may be converted to the appropriate display timezone.
+The SLA evaluator maps a target to one of these states:
 
-SLA calculations must not depend on the browser clock.
+```text
+ON_TRACK
+WARNING
+BREACHED
+MET
+```
 
-Server-side time is authoritative.
+Warning and breach writes use conditional updates. This prevents normal repeated page loads from creating the same system activity more than once.
 
----
+### Current limitation
 
-## 48. Issue Numbering
+The deployed release evaluates and persists SLA state when ticket detail data is loaded.
 
-Tickets and incidents should have human-readable workspace-scoped identifiers.
+A future version could move this into an unattended scheduled worker so warnings and breaches are processed even if nobody opens the ticket.
+
+## 11. Transactions
+
+Transactions are used when multiple writes belong to one business operation.
+
+Examples include:
+
+- incrementing a workspace ticket sequence and creating the ticket
+- writing ticket state and related activity
+- creating incident state and related activity
+
+This keeps partially completed workflows from becoming normal application state.
+
+## 12. Activity history
+
+Ticket and incident activity is separate from the main record.
+
+Activity answers:
+
+> What happened to this issue?
 
 Examples:
 
 ```text
-TKT-1042
-INC-0184
+Ticket created
+Priority changed
+Assignee changed
+Status changed
+SLA warning
+SLA breached
+Incident linked
+Incident resolved
 ```
 
-Internal database IDs remain separate.
+System-generated events may have no user actor.
 
-This means the product can use:
+## 13. Deployment
+
+Current production setup:
 
 ```text
-internal ID:
-cm123abc...
-
-display ID:
-INC-0184
+Next.js application  -> Vercel
+PostgreSQL           -> Neon
+Authentication       -> Clerk
 ```
 
-Display numbers are designed for humans.
+The Prisma client is generated during the production build.
 
-Internal IDs are designed for persistence and relations.
+## 14. Testing
 
----
+The current test suite focuses on important business behavior, including:
 
-## 49. Key Architectural Principles
+- workspace authorization
+- permissions
+- workspace creation
+- invitations
+- member management
+- services
+- ticket creation
+- SLA calculations
 
-OpsDesk development should follow these principles:
+The main local quality gate is:
 
-### 1. PostgreSQL is the source of truth
+```bash
+npm run check
+```
 
-Redis and real-time messages are temporary infrastructure.
+It runs linting, type checking, tests, and a production build.
 
-### 2. Authentication is not authorization
+## 15. Future architecture
 
-A signed-in user is not automatically allowed to access a workspace.
-
-### 3. Every tenant-owned query is scoped
-
-Workspace ownership is part of the query whenever possible.
-
-### 4. External side effects are asynchronous when practical
-
-Webhook delivery should not block an incident update request.
-
-### 5. Background work is retry-safe
-
-Workers must expect duplicate execution.
-
-### 6. Real-time updates are recoverable
-
-Missing one event should not corrupt client state.
-
-### 7. Business logic is shared
-
-Server Actions and API routes should not implement conflicting versions of the same rules.
-
-### 8. Security is enforced server-side
-
-Hidden buttons are not authorization.
-
-### 9. Complexity must earn its place
-
-Infrastructure should solve an actual requirement rather than exist solely to make the architecture look impressive.
-
-### 10. Production behavior matters
-
-Retries, failures, authorization, logs, migrations, and deployment are part of the product.
-
----
-
-## 50. Initial Technology Direction
-
-Current planned stack:
+These are possible next steps, not current production features:
 
 ```text
-Frontend
-- Next.js
-- React
-- TypeScript
-- Tailwind CSS
-
-Authentication
-- Clerk
-
-Validation
-- Zod
-
-Database
-- PostgreSQL
-- Prisma
-- Neon in production
-
-Queue / Distributed State
-- Redis
-- BullMQ or equivalent
-
-Background Processing
-- Node.js worker
-
-Realtime
-- Redis Pub/Sub
-- dedicated Node.js realtime gateway
-- WebSocket or SSE transport
-
-Object Storage
-- S3-compatible storage
-
-Testing
-- Vitest
-- React Testing Library
-- Playwright
-
-Deployment
-- Vercel for web
-- long-running container hosting for worker/realtime
-- managed PostgreSQL
-- managed Redis
-- managed object storage
-
-Observability
-- structured logging
-- error monitoring
+Scheduled SLA worker
+Real-time incident updates
+Attachments / object storage
+REST API
+API keys
+Outbound webhooks
+Immutable security audit log
+Expanded observability
 ```
 
-Specific managed vendors beyond the core stack may change during implementation without changing the overall architecture.
-
----
-
-## 51. Architecture Evolution
-
-This architecture is intentionally designed to evolve.
-
-Features should begin with the simplest implementation that preserves the intended boundaries.
-
-Examples:
-
-```text
-PostgreSQL search
-before
-Elasticsearch
-
-Redis queue
-before
-Kafka
-
-Modular monolith
-before
-microservices
-
-Single worker pool
-before
-specialized worker fleets
-```
-
-OpsDesk should demonstrate engineering judgment, not infrastructure collecting.
-
----
-
-## 52. Architecture Definition of Success
-
-The architecture succeeds if OpsDesk can demonstrate:
-
-- secure multi-tenancy
-- explicit role-based authorization
-- reliable relational persistence
-- asynchronous background processing
-- retry-safe side effects
-- real-time collaboration
-- private object storage
-- external API access
-- signed outbound webhooks
-- immutable security auditing
-- production observability
-- responsive web interfaces
-- automated testing across system boundaries
-
-The final architecture should be more sophisticated than Application Tracker because the product requirements demand additional system boundaries, not because unnecessary services were added.
+If they are added later, each boundary should solve a real product need rather than exist only to make the architecture look more complicated.
