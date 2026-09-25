@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { WorkspaceGreeting } from "@/features/workspaces/components/workspace-greeting";
 import { WorkspaceShell } from "@/features/workspaces/components/workspace-shell";
 import { getWorkspaceDashboardData } from "@/features/workspaces/server/get-workspace-dashboard-data";
 
@@ -108,9 +109,7 @@ export default async function WorkspacePage({
               Operations overview
             </p>
 
-            <h1 className="mt-2 text-3xl font-semibold tracking-[-0.04em] text-[#171927] lg:text-[38px]">
-              Good afternoon.
-            </h1>
+            <WorkspaceGreeting />
 
             <p className="mt-2 text-sm text-[#8d909d]">
               Here&apos;s what&apos;s happening across{" "}
